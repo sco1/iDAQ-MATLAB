@@ -1,0 +1,14 @@
+# MATLAB files
+*.asv
+*.mat
+*.fig
+
+# Wamore executable
+logdecoder.exe
+
+# Misc helper functions
+/wamore_openings.m
+/wamore_descentrate.m
+/wamore2kml.m
+/procdatatrim.m
+/iDAQ_GPS_transpose.m
