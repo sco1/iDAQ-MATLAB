@@ -51,13 +51,12 @@ else
         decodelog(filepath);
     end
 end
-
 cd(startdir)
 end
 
 function decodelog(filepath)
 [pathname,filename,ext] = fileparts(filepath);
-cd(pathname);
+startdir = cd(pathname);
 filename = [filename,ext];
 
 if ~exist([filepath '.csv'],'file')
@@ -66,8 +65,11 @@ if ~exist([filepath '.csv'],'file')
     dos(['logdecoder.exe ' filename],'-echo');
     toc
     fprintf('\n********************\n')
+    cd(startdir)
+    processlog(filepath);
 else
     fprintf('\n... Already Decoded, Skipping Decoder ...\nLog ID: %s\n   DAQ: %s\n********************\n',filename,pathname)
+    cd(startdir)
     processlog(filepath);
 end
 end
@@ -114,11 +116,11 @@ function processlog(filepath)
 % Check for existence of processed data file, process if it has not been
 [pathname,filename,lognum] = fileparts(filepath);
 lognum(lognum=='.') = '';
-test = exist([pathname filesep filename lognum '_proc.csv'],'file');
+test = exist([pathname filesep filename lognum '_proc.mat'],'file');
 
 if test == 0
     fprintf('\n... Processing iDAQ Data ...\nLog ID: %s\n   DAQ: %s\n********************\n',[filename '.' lognum],pathname)
-    WamoreDataBox_AllData_NoIMU([filepath '.csv'])
+    iDAQdataparse([filepath '.csv'])
 else
     fprintf('\n... Already Processed, Skipping Processing ...\nLog ID: %s\n   DAQ: %s\n********************\n',[filename '.' lognum],pathname)
 end

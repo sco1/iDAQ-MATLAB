@@ -1,4 +1,4 @@
-function [varargout] = WamoreDataBox_AllData_NoIMU(filepath)
+function [varargout] = iDAQdataparse(filepath)
 % Load in data from Wamore data box
 % As the data sets are often large due to the 1,000Hz sampling rate writing
 % 39 columns of data, the file is parsed into 5,000 block segments and
@@ -33,6 +33,7 @@ catch
     clear line1 line2
     n_rows = str2double(perl('countlines.pl',filepath)) - 1;
 end
+delete('countlines.pl'); % Clean up litter
 
 chunksize = 5000;
 
@@ -65,11 +66,11 @@ output.zaccl           = zeros(n_rows,1); % Z accelerometer output, Gs, with 0.0
 % output.din3            = zeros(n_rows,1); % General purpose digital input: 0-Low 1-High
 % output.din4            = zeros(n_rows,1); % General purpose digital input: 0-Low 1-High
 % output.pwrsw           = zeros(n_rows,1); % Power switch status: 0-Pressed 1- Open
-output.pstemp          = zeros(n_rows,1); % Temperature reported by the pressure sensor, Celsius
+% output.pstemp          = zeros(n_rows,1); % Temperature reported by the pressure sensor, Celsius
 output.pressure        = zeros(n_rows,1); % Temperature reported by the pressure sensor, Pascals
-% output.GPS.Msgs        = zeros(n_rows,1); % Number of NMEA GPS mesages received from the GPS module
-% output.GPS.Valid       = cell(n_rows,1);  % GPS valid signal: V-Navigation warning A-Valid Data
-% output.GPS.Mode        = cell(n_rows,1);  % GPS mode: M-Manual A-Automatic
+output.GPS.Msgs        = zeros(n_rows,1); % Number of NMEA GPS mesages received from the GPS module
+output.GPS.Valid       = cell(n_rows,1);  % GPS valid signal: V-Navigation warning A-Valid Data
+output.GPS.Mode        = cell(n_rows,1);  % GPS mode: M-Manual A-Automatic
 output.GPS.FixMode     = zeros(n_rows,1); % GPS fix mode; 1-Fix not available 2-2D fix 3-3D fix
 output.GPS.DateTime    = cell(n_rows,1);  % GPS date and time, YYYYMMDD-HHMMSS
 output.GPS.SatsInView  = zeros(n_rows,1); % Number of satellites in view
@@ -122,11 +123,11 @@ while ~feof(file_id)
 %     output.din3(idx_start:idx_end)            = segarray{24};
 %     output.din4(idx_start:idx_end)            = segarray{25};
 %     output.pwrsw(idx_start:idx_end)           = segarray{26};
-    output.pstemp(idx_start:idx_end)          = segarray{27};
+%     output.pstemp(idx_start:idx_end)          = segarray{27};
     output.pressure(idx_start:idx_end)        = segarray{28};
-%     output.GPS.Msgs(idx_start:idx_end)        = segarray{29};
-%     output.GPS.Valid(idx_start:idx_end)       = str2cell(segarray{30});
-%     output.GPS.Mode(idx_start:idx_end)        = str2cell(segarray{31});
+    output.GPS.Msgs(idx_start:idx_end)        = segarray{29};
+    output.GPS.Valid(idx_start:idx_end)       = str2cell(segarray{30});
+    output.GPS.Mode(idx_start:idx_end)        = str2cell(segarray{31});
     output.GPS.FixMode(idx_start:idx_end)     = segarray{32};
     output.GPS.DateTime(idx_start:idx_end)    = segarray{33};
     output.GPS.SatsInView(idx_start:idx_end)  = segarray{34};
@@ -150,11 +151,10 @@ end
 [~,savefile,~] = fileparts(filepath);
 savefile(savefile=='.') = ''; % Clear out periods
 
-save([pathname filesep savefile '_proc.mat'],'output');
-% writeexcelfile(output,pathname,savefile);
+save([pathname filesep savefile '_proc.mat'],'output', '-v7.3');
+% writeexcelfile(output, pathname, savefile);
 % writecsvdata(output,pathname,savefile);
 % exportplot(output,pathname,savefile);
-% sonde_windcorrect(output,pathname,savefile);
 
 toc
 
@@ -265,46 +265,4 @@ plot(output.t/1000,output.press_alt)
 title('Pressure Altitude'); xlabel('Time (s)'); ylabel('Altitude (m)');
 savefig(tempfig,[pathname filesep savefile '.fig'])
 close(tempfig);
-end
-
-function sondedata = pullsonde()
-[sonde_filename,sonde_pathname] = uigetfile('*.wprof','Select CAT Generated Wind Profile');
-
-fid = fopen([sonde_pathname sonde_filename],'r');
-sondedata = zeros(37,3); % Initialize sonde dataset
-
-
-saveflag = 0;
-lineidx = 1;
-while ~feof(fid)
-    tline = fgetl(fid);
-    if strcmp(tline(1),'*')
-        % PI Elevation, start pulling data
-        saveflag = 1;
-    end
-    if saveflag == 1 && strcmp(tline(1:2),'**')
-        % Release altitude, save another 3000 ft and break out of loop
-        sondedata(lineidx,:) = writewinds(tline(3:end));
-        lineidx = lineidx + 1;
-        for ii = 1:3
-            tline = fgetl(fid);
-            sondedata(lineidx,:) = writewinds(tline);
-            lineidx = lineidx + 1;
-        end
-        fseek(fid,0,'eof'); % Move to end of file to break out
-        saveflag = 0;
-    end
-    if saveflag == 1
-        sondedata(lineidx,:) = writewinds(tline);
-        lineidx = lineidx + 1;
-    end
-end
-
-    function parsedline = writewinds(dataline)
-        % Parse line and export
-        temp = regexp(dataline,'(\d*)','tokens');
-        parsedline = [str2double(temp{1}{1}), str2double(temp{2}{1}), str2double(temp{3}{1})];
-    end
-
-sondedata((sondedata(:,1) == 0),:) = []; % Trim extra entries. Will break if we drop at or below sea level
 end
