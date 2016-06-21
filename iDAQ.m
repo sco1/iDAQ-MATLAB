@@ -73,9 +73,7 @@ classdef iDAQ < handle
                 case '.csv'
                     % Parse decoded CSV & process
                     dataObj.filepath_CSV = filepath;
-                    dataObj.analysisdate = iDAQ.getdate();
-                    dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
-                    parselogCSV(dataObj);
+                    dataObj.processCSV(dataObj);
                 case '.mat'
                     % No parsing needed, dump data straight in
                 otherwise
@@ -83,16 +81,21 @@ classdef iDAQ < handle
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
                     dataObj.filepath_LOG = filepath;
-                    dataObj.analysisdate = iDAQ.getdate();
                     dataObj.filepath_CSV = iDAQ.wamoredecoder(dataObj.filepath_LOG);
-                    dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
-                    parselogCSV(dataObj);
+                    dataObj.processCSV(dataObj);
             end
         end
     end
     
     
     methods (Access = private)
+        function processCSV(dataObj)
+            dataObj.analysisdate = iDAQ.getdate();
+            dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
+            dataObj.parselogCSV(dataObj);
+        end
+        
+        
         function initializedata(dataObj)
             dataObj.ndatapoints = dataObj.nlines - dataObj.nheaderlines;
             
