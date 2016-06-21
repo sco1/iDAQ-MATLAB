@@ -3,7 +3,9 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
-        filepath
+        filepath_LOG
+        filepath_CSV
+        filepath_MAT
         analysisdate
         time             % Time, milliseconds, since DAQ was powered on
         gyro_x           % X gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -57,19 +59,19 @@ classdef iDAQ < handle
         function dataObj = iDAQ(filepath)
             if exist('filepath', 'var')
                 filepath = fullfile(filepath);  % Ensure correct file separators
-                dataObj.filepath = filepath;
             else
-                uigetfile({'LOG.*', 'Raw Log File'; ...
-                           '*.csv', 'Decoded Raw Log File'; ...
-                           '*_proc.mat', 'Processed Log File'}, ...
-                          'Select Wamore iDAQ data file' ...
-                          );
-                dataObj.filepath = [pathname file];
+                [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
+                                              '*.csv', 'Decoded Raw Log File'; ...
+                                              '*_proc.mat', 'Processed Log File'}, ...
+                                             'Select Wamore iDAQ data file' ...
+                                              );
+                filepath = [pathname file];
             end
-            [~, ~, ext] = fileparts(dataObj.filepath);
+            [~, ~, ext] = fileparts(filepath);
             switch ext
                 case '.csv'
                     % Parse decoded CSV & process
+                    dataObj.filepath_CSV = filepath;
                     dataObj.analysisdate = iDAQ.getdate();
                     dataObj.nlines = iDAQ.countlines(filepath);
                 case '.mat'
@@ -78,8 +80,9 @@ classdef iDAQ < handle
                     % Need to figure out how to best catch LOG.*** files,
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
+                    dataObj.filepath_LOG = filepath;
                     dataObj.analysisdate = iDAQ.getdate();
-                    iDAQ.wamoredecoder(dataObj.filepath)
+                    dataObj.filepath_CSV = iDAQ.wamoredecoder(dataObj.filepath_LOG);
             end
         end
     end
@@ -177,11 +180,12 @@ classdef iDAQ < handle
         end
         
         
-        function wamoredecoder(filepath)
+        function [CSVpath] = wamoredecoder(filepath)
             [pathname, filename, ext] = fileparts(filepath);
             startdir = cd(pathname);
             file = [filename, ext];
-            if ~exist([file '.csv'], 'file')
+            CSVpath = [file '.csv'];
+            if ~exist(CSVpath, 'file')
                 fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
                 tic
                 [~, cmdout] = dos(['logdecoder.exe ' file]);
