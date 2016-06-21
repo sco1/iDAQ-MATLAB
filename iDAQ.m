@@ -74,7 +74,8 @@ classdef iDAQ < handle
                     % Parse decoded CSV & process
                     dataObj.filepath_CSV = filepath;
                     dataObj.analysisdate = iDAQ.getdate();
-                    dataObj.nlines = iDAQ.countlines(filepath);
+                    dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
+                    parselogCSV(dataObj);
                 case '.mat'
                     % No parsing needed, dump data straight in
                 otherwise
@@ -84,6 +85,8 @@ classdef iDAQ < handle
                     dataObj.filepath_LOG = filepath;
                     dataObj.analysisdate = iDAQ.getdate();
                     dataObj.filepath_CSV = iDAQ.wamoredecoder(dataObj.filepath_LOG);
+                    dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
+                    parselogCSV(dataObj);
             end
         end
     end
@@ -141,7 +144,7 @@ classdef iDAQ < handle
             hlines = dataObj.nheaderlines;
             step = 1;
             while ~feof(fID)
-                segarray = textscan(file_id, format, dataObj.chunksize, 'Delimiter',',','HeaderLines',hlines);
+                segarray = textscan(fID, dataObj.formatspec, dataObj.chunksize, 'Delimiter', ',', 'HeaderLines', hlines);
                 hlines = 0; % we've skipped the header line, don't skip more lines on the subsequent imports
                 
                 if isempty(segarray{:,1})
@@ -184,8 +187,8 @@ classdef iDAQ < handle
                 dataObj.pstemp(idx_start:idx_end)          = segarray{27};
                 dataObj.pressure(idx_start:idx_end)        = segarray{28};
                 dataObj.GPS_Msgs(idx_start:idx_end)        = segarray{29};
-                dataObj.GPS_Valid(idx_start:idx_end)       = str2cell(segarray{30});
-                dataObj.GPS_Mode(idx_start:idx_end)        = str2cell(segarray{31});
+                dataObj.GPS_Valid(idx_start:idx_end)       = iDAQ.str2cell(segarray{30});
+                dataObj.GPS_Mode(idx_start:idx_end)        = iDAQ.str2cell(segarray{31});
                 dataObj.GPS_FixMode(idx_start:idx_end)     = segarray{32};
                 dataObj.GPS_DateTime(idx_start:idx_end)    = segarray{33};
                 dataObj.GPS_SatsInView(idx_start:idx_end)  = segarray{34};
@@ -262,6 +265,18 @@ classdef iDAQ < handle
             else
                 fprintf('Log %s already decoded, skipping decoder\n', regexprep(ext, '\.', ''))
                 cd(startdir)
+            end
+        end
+        
+        
+        function [output] = str2cell(chararray)
+            % Convert a character array of length N into a Nx1 cell array
+            
+            N = length(chararray);
+            output = cell(N,1);
+            
+            for ii = 1:N
+                output{N} = chararray(N);
             end
         end
     end
