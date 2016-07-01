@@ -3,9 +3,6 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
-        filepath_LOG
-        filepath_CSV
-        filepath_MAT
         analysisdate
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -51,6 +48,7 @@ classdef iDAQ < handle
     end
     
     properties (Access = private)
+        datafilepath
         nlines
         nheaderlines = 1;
         ndatapoints
@@ -65,7 +63,7 @@ classdef iDAQ < handle
             else
                 [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
                                               '*.csv', 'Decoded Raw Log File'; ...
-                                              '*_proc.mat', 'Processed Log File'}, ...
+                                              '*_proc*.mat', 'Processed Log File'}, ...
                                              'Select Wamore iDAQ data file' ...
                                               );
                 filepath = [pathname file];
@@ -74,7 +72,7 @@ classdef iDAQ < handle
             switch ext
                 case '.csv'
                     % Parse decoded CSV & process
-                    dataObj.filepath_CSV = filepath;
+                    dataObj.datafilepath = filepath;
                     processCSV(dataObj);
                 case '.mat'
                     % No parsing needed, dump data straight in
@@ -82,8 +80,7 @@ classdef iDAQ < handle
                     % Need to figure out how to best catch LOG.*** files,
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
-                    dataObj.filepath_LOG = filepath;
-                    dataObj.filepath_CSV = wamoredecoder(dataObj.filepath_LOG);
+                    dataObj.datafilepath = wamoredecoder(filepath);
                     processCSV(dataObj);
             end
         end
@@ -92,12 +89,39 @@ classdef iDAQ < handle
         function trim(dataObj)
             idx = iDAQ.windowdata(dataObj.press_alt_meters);
             allprops = properties(dataObj);
-            propstoignore = {'filepath_LOG', 'filepath_CSV', 'filepath_MAT', 'analysisdate'};
+            propstoignore = {'analysisdate'};
             propstotrim = allprops(~ismember(allprops, propstoignore));
             
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
+        end
+        
+        
+        function savemat(dataObj)
+            % Save public properties as a vanilla data structure that
+            % doesn't require the class definition to load into MATLAB
+            allprops = properties(dataObj);
+            for ii = 1:length(allprops);
+                output.(allprops{ii}) = dataObj.(allprops{ii});
+            end
+            output.datafilepath = dataObj.datafilepath;
+            
+            [pathname, savefile] = fileparts(dataObj.datafilepath);
+            savefile(savefile=='.') = ''; % Clear out periods
+            
+            savefilepath = fullfile(pathname, [savefile '_proc_noclass.mat']);
+            save(savefilepath, 'output');
+        end
+        
+        
+        function save(dataObj)
+            % Save instance of object & its data
+            [pathname, savefile] = fileparts(dataObj.datafilepath);
+            savefile(savefile=='.') = ''; % Clear out periods
+
+            savefilepath = fullfile(pathname, [savefile '_proc.mat']);
+            save(savefilepath, 'dataObj');
         end
     end
     
@@ -105,7 +129,7 @@ classdef iDAQ < handle
     methods (Access = private)
         function processCSV(dataObj)
             dataObj.analysisdate = iDAQ.getdate();
-            dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
+            dataObj.nlines = iDAQ.countlines(dataObj.datafilepath);
             initializedata(dataObj);
             parselogCSV(dataObj);
             [dataObj.press_alt_meters, dataObj.press_alt_feet] = iDAQ.calcpress_alt(dataObj.pressure);
@@ -158,7 +182,7 @@ classdef iDAQ < handle
         
         
         function parselogCSV(dataObj)
-            fID = fopen(dataObj.filepath_CSV);
+            fID = fopen(dataObj.datafilepath);
             
             hlines = dataObj.nheaderlines;
             step = 1;
@@ -342,6 +366,7 @@ classdef iDAQ < handle
             delete(h.fig);
         end
     end
+    
     
     methods (Static, Access = private)
         function startdrag(lineObj, ~, h)
