@@ -7,45 +7,47 @@ classdef iDAQ < handle
         filepath_CSV
         filepath_MAT
         analysisdate
-        time             % Time, milliseconds, since DAQ was powered on
-        gyro_x           % X gyro output, deg/sec, with 0.05 deg/sec resolution
-        gyro_y           % Y gyro output, deg/sec, with 0.05 deg/sec resolution
-        gyro_z           % Z gyro output, deg/sec, with 0.05 deg/sec resolution
-        accel_x          % X accelerometer output, Gs, with 0.00333 G resolution
-        accel_y          % Y accelerometer output, Gs, with 0.00333 G resolution
-        accel_z          % Z accelerometer output, Gs, with 0.00333 G resolution
-        link_1           % Raw strain link ADC data, must be converted to force
-        link_2           % Raw strain link ADC data, must be converted to force
-        link_3           % Raw strain link ADC data, must be converted to force
-        link_4           % Raw strain link ADC data, must be converted to force
-        link_5           % Raw strain link ADC data, must be converted to force
-        adc_1            % Internal DAQ value, engineering use only
-        adc_2            % On-board 5V supply monitor
-        adc_3            % Internal DAQ value, engineering use only
-        adc_4            % Internal DAQ value, engineering use only
-        adc_5            % Approximate battery voltage
-        adc_6            % On-board 3.3V supply monitor
-        adc_7            % User input analog voltage #1, 0V to 4.0V
-        adc_8            % User input analog voltage #2, 0V to 4.0V
-        adc_temp         % Internal DAQ value, engineering use only
-        din_1            % Digital input #1 - Lanyard switch status
-        din_2            % General purpose digital input: 0-Low 1-High
-        din_3            % General purpose digital input: 0-Low 1-High
-        din_4            % General purpose digital input: 0-Low 1-High
-        pwrsw            % Power switch status: 0-Pressed 1- Open
-        pstemp           % Temperature reported by the pressure sensor, Celsius
-        pressure         % Temperature reported by the pressure sensor, Pascals
-        GPS_Msgs         % Number of NMEA GPS mesages received from the GPS module
-        GPS_Valid        % GPS valid signal: V-Navigation warning A-Valid Data
-        GPS_Mode         % GPS mode: M-Manual A-Automatic
-        GPS_FixMode      % GPS fix mode; 1-Fix not available 2-2D fix 3-3D fix
-        GPS_DateTime     % GPS date and time, YYYYMMDD-HHMMSS
-        GPS_SatsInView   % Number of satellites in view
-        GPS_SatsInUse    % Number of satellites in use
-        GPS_Latitude     % GPS Latitude, decimal degrees
-        GPS_Longitude    % GPS Longitude, decimal degrees
-        GPS_Altitude     % GPS Altitude, meters
-        GPS_GroundSpeed  % GPS Groundspeed, knots true
+        time              % Time, milliseconds, since DAQ was powered on
+        gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
+        gyro_y            % Y gyro output, deg/sec, with 0.05 deg/sec resolution
+        gyro_z            % Z gyro output, deg/sec, with 0.05 deg/sec resolution
+        accel_x           % X accelerometer output, Gs, with 0.00333 G resolution
+        accel_y           % Y accelerometer output, Gs, with 0.00333 G resolution
+        accel_z           % Z accelerometer output, Gs, with 0.00333 G resolution
+        link_1            % Raw strain link ADC data, must be converted to force
+        link_2            % Raw strain link ADC data, must be converted to force
+        link_3            % Raw strain link ADC data, must be converted to force
+        link_4            % Raw strain link ADC data, must be converted to force
+        link_5            % Raw strain link ADC data, must be converted to force
+        adc_1             % Internal DAQ value, engineering use only
+        adc_2             % On-board 5V supply monitor
+        adc_3             % Internal DAQ value, engineering use only
+        adc_4             % Internal DAQ value, engineering use only
+        adc_5             % Approximate battery voltage
+        adc_6             % On-board 3.3V supply monitor
+        adc_7             % User input analog voltage #1, 0V to 4.0V
+        adc_8             % User input analog voltage #2, 0V to 4.0V
+        adc_temp          % Internal DAQ value, engineering use only
+        din_1             % Digital input #1 - Lanyard switch status
+        din_2             % General purpose digital input: 0-Low 1-High
+        din_3             % General purpose digital input: 0-Low 1-High
+        din_4             % General purpose digital input: 0-Low 1-High
+        pwrsw             % Power switch status: 0-Pressed 1- Open
+        pstemp            % Temperature reported by the pressure sensor, Celsius
+        pressure          % Temperature reported by the pressure sensor, Pascals
+        GPS_Msgs          % Number of NMEA GPS mesages received from the GPS module
+        GPS_Valid         % GPS valid signal: V-Navigation warning A-Valid Data
+        GPS_Mode          % GPS mode: M-Manual A-Automatic
+        GPS_FixMode       % GPS fix mode; 1-Fix not available 2-2D fix 3-3D fix
+        GPS_DateTime      % GPS date and time, YYYYMMDD-HHMMSS
+        GPS_SatsInView    % Number of satellites in view
+        GPS_SatsInUse     % Number of satellites in use
+        GPS_Latitude      % GPS Latitude, decimal degrees
+        GPS_Longitude     % GPS Longitude, decimal degrees
+        GPS_Altitude      % GPS Altitude, meters
+        GPS_GroundSpeed   % GPS Groundspeed, knots true
+        press_alt_meters  % Pressure altitude, meters
+        press_alt_feet    % Pressure altitude, meters
     end
     
     properties (Access = private)
@@ -94,6 +96,7 @@ classdef iDAQ < handle
             dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
             initializedata(dataObj);
             parselogCSV(dataObj);
+            [dataObj.press_alt_meters, dataObj.press_alt_feet] = iDAQ.calcpress_alt(dataObj.pressure);
         end
         
         
@@ -292,6 +295,16 @@ classdef iDAQ < handle
             for ii = 1:length(cellarray)
                 cellarray{ii}(isnan(cellarray{ii})) = 0;
             end
+        end
+        
+        
+        function [press_alt_meters, press_alt_feet] = calcpress_alt(pressure)
+            % Determine altitude based on pressure
+            % Need to revisit to evaluate effect of temperature lapse on calculations
+            alt = [-1000:1000:10000 15000:5000:30000];  % Altitude, meters
+            press = [1.139e5 1.013e5 8.988e4 7.950e4 7.012e4 6.166e4 5.405e4 4.722e4 4.111e4 3.565e4 3.080e4 2.650e4 1.211e4 5.529e3 2.549e3 1.197e3]; % Pressure, pascals
+            press_alt_meters = interp1(press, alt, pressure, 'pchip');  % Pressure altitude, meters
+            press_alt_feet   = press_alt_meters * 3.2808;
         end
     end
 end
