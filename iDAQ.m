@@ -87,6 +87,18 @@ classdef iDAQ < handle
                     processCSV(dataObj);
             end
         end
+        
+        
+        function trim(dataObj)
+            idx = iDAQ.windowdata(dataObj.press_alt_meters);
+            allprops = properties(dataObj);
+            propstoignore = {'filepath_LOG', 'filepath_CSV', 'filepath_MAT', 'analysisdate'};
+            propstotrim = allprops(~ismember(allprops, propstoignore));
+            
+            for ii = 1:length(propstotrim)
+                dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
+            end
+        end
     end
     
     
@@ -305,6 +317,82 @@ classdef iDAQ < handle
             press = [1.139e5 1.013e5 8.988e4 7.950e4 7.012e4 6.166e4 5.405e4 4.722e4 4.111e4 3.565e4 3.080e4 2.650e4 1.211e4 5.529e3 2.549e3 1.197e3]; % Pressure, pascals
             press_alt_meters = interp1(press, alt, pressure, 'pchip');  % Pressure altitude, meters
             press_alt_feet   = press_alt_meters * 3.2808;
+        end
+        
+        
+        function dataidx = windowdata(ydata)
+            h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag);
+            h.ax = axes('Parent', h.fig);
+            
+            plot(ydata, 'Parent', h.ax);
+            h.line_1 = line([2 2], ylim(h.ax), ...
+                            'Color', 'g', ...
+                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
+                            );
+            h.line_2 = line([5 5], ylim(h.ax), ...
+                            'Color', 'g', ...
+                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
+                            );
+                        
+            addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
+            addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
+            
+            uiwait(msgbox('Window Region of Interest Then Press OK'))
+            dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
+            delete(h.fig);
+        end
+    end
+    
+    methods (Static, Access = private)
+        function startdrag(lineObj, ~, h)
+            h.fig.WindowButtonMotionFcn = {@iDAQ.dragline, h, lineObj};
+        end
+        
+        
+        function stopdrag(hObj, ~)
+            hObj.WindowButtonMotionFcn = '';
+        end
+        
+        
+        function checklinesx(~, ~, h)
+            currxlim = h.ax.XLim;
+            currlinex_1 = h.line_1.XData(1);
+            currlinex_2 = h.line_2.XData(1);
+            
+            if currlinex_1 < currxlim(1)
+                h.line_1.XData = [1, 1]*currxlim(1);
+            end
+            
+            if currlinex_1 > currxlim(2)
+                h.line_1.XData = [1, 1]*currxlim(2);
+            end
+            
+            if currlinex_2 < currxlim(1)
+                h.line_2.XData = [1, 1]*currxlim(1);
+            end
+            
+            if currlinex_2 > currxlim(2)
+                h.line_2.XData = [1, 1]*currxlim(2);
+            end
+            
+        end
+        
+        
+        function changelinesy(~, ~, h)
+            h.line_1.YData = ylim(h.ax);
+            h.line_2.YData = ylim(h.ax);
+        end
+
+        
+        function dragline(~, ~, h, lineObj)
+            currentX = h.ax.CurrentPoint(1, 1);
+            if currentX < h.ax.XLim(1)
+                lineObj.XData = [1, 1]*h.ax.XLim(1);
+            elseif currentX > h.ax.XLim(2)
+                lineObj.XData = [1, 1]*h.ax.XLim(2);
+            else
+                lineObj.XData = [1, 1]*currentX;
+            end
         end
     end
 end
