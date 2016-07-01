@@ -73,7 +73,7 @@ classdef iDAQ < handle
                 case '.csv'
                     % Parse decoded CSV & process
                     dataObj.filepath_CSV = filepath;
-                    dataObj.processCSV(dataObj);
+                    processCSV(dataObj);
                 case '.mat'
                     % No parsing needed, dump data straight in
                 otherwise
@@ -81,8 +81,8 @@ classdef iDAQ < handle
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
                     dataObj.filepath_LOG = filepath;
-                    dataObj.filepath_CSV = iDAQ.wamoredecoder(dataObj.filepath_LOG);
-                    dataObj.processCSV(dataObj);
+                    dataObj.filepath_CSV = wamoredecoder(dataObj.filepath_LOG);
+                    processCSV(dataObj);
             end
         end
     end
@@ -92,7 +92,8 @@ classdef iDAQ < handle
         function processCSV(dataObj)
             dataObj.analysisdate = iDAQ.getdate();
             dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
-            dataObj.parselogCSV(dataObj);
+            initializedata(dataObj);
+            parselogCSV(dataObj);
         end
         
         
@@ -148,6 +149,7 @@ classdef iDAQ < handle
             step = 1;
             while ~feof(fID)
                 segarray = textscan(fID, dataObj.formatspec, dataObj.chunksize, 'Delimiter', ',', 'HeaderLines', hlines);
+                segarray(22:26) = iDAQ.checkNaN(segarray(22:26));
                 hlines = 0; % we've skipped the header line, don't skip more lines on the subsequent imports
                 
                 if isempty(segarray{:,1})
@@ -282,7 +284,15 @@ classdef iDAQ < handle
                 output{N} = chararray(N);
             end
         end
+        
+        
+        function [cellarray] = checkNaN(cellarray)
+            % Check the digital values from the input for NaNs, set all NaN
+            % to false
+            for ii = 1:length(cellarray)
+                cellarray{ii}(isnan(cellarray{ii})) = 0;
+            end
+        end
     end
-    
 end
 
