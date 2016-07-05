@@ -82,7 +82,7 @@ classdef iDAQ < handle
                     % Need to figure out how to best catch LOG.*** files,
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
-                    dataObj.datafilepath = wamoredecoder(filepath);
+                    dataObj.datafilepath = iDAQ.wamoredecoder(filepath);
                     processCSV(dataObj);
             end
         end
@@ -324,20 +324,31 @@ classdef iDAQ < handle
         
         
         function [CSVpath] = wamoredecoder(filepath)
-            [pathname, filename, ext] = fileparts(filepath);
-            startdir = cd(pathname);
-            file = [filename, ext];
-            CSVpath = [file '.csv'];
+            CSVpath = [filepath '.csv'];
+            [~, ~, ext] = fileparts(filepath);
             if ~exist(CSVpath, 'file')
-                fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
-                tic
-                [~, cmdout] = dos(['logdecoder.exe ' file]);
-                elapsedtime = toc;
-                fprintf('logdecoder.exe exited, elapsed time %.3f seconds\n', elapsedtime)
-                cd(startdir)
+                % Identify full path to Wamore's logdecoder executable.
+                % For now we'll assume that it's in the same directory as
+                % this m-file.
+                % Once AppLocker goes live on the DREN we will need to
+                % point to a whitelisted folder in order to decode iDAQ
+                % data.
+                logdecoderpath = cd;
+                if exist(fullfile(logdecoderpath, 'logdecoder.exe'), 'file')
+                    fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
+                    tic
+                    systemcall = sprintf('logdecoder.exe "%s"', filepath);
+                    [~, cmdout] = system(systemcall);
+                    elapsedtime = toc;
+                    fprintf('logdecoder.exe exited, elapsed time %.3f seconds\n', elapsedtime)
+                else
+                    err.identifier = 'iDAQ:wamoredecoder:decodernotfound';
+                    err.message = sprintf('Wamore logdecoder.exe not found, please place in ''%s''', logdecoderpath);
+                    err.stack = dbstack('-completenames');
+                    error(err);
+                end
             else
                 fprintf('Log %s already decoded, skipping decoder\n', regexprep(ext, '\.', ''))
-                cd(startdir)
             end
         end
         
