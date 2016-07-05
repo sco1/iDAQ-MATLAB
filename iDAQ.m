@@ -89,14 +89,16 @@ classdef iDAQ < handle
         
         
         function trim(dataObj)
-            idx = iDAQ.windowdata(dataObj.press_alt_meters);
+            [idx, ax] = iDAQ.windowdata(dataObj.press_alt_feet);
             allprops = properties(dataObj);
-            propstoignore = {'analysisdate'};
+            propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};
             propstotrim = allprops(~ismember(allprops, propstoignore));
             
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
+            
+            plot(dataObj.time/1000, dataObj.press_alt_feet);
         end
         
         
@@ -403,6 +405,15 @@ classdef iDAQ < handle
             
             uiwait(msgbox('Window Region of Interest Then Press OK'))
             dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
+            
+            if dataidx(1) < 1
+                dataidx(1) = 1;
+            end
+            
+            if dataidx(2) > length(ydata)
+                dataidx(2) = length(ydata);
+            end
+            
             delete([h.line_1, h.line_2]);
             ax = h.ax;
         end
