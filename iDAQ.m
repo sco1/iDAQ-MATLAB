@@ -3,10 +3,7 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
-        filepath_LOG
-        filepath_CSV
-        filepath_MAT
-        analysisdate
+        analysisdate      % Date of analysis, ISO 8601, yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
         gyro_y            % Y gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -48,14 +45,18 @@ classdef iDAQ < handle
         GPS_GroundSpeed   % GPS Groundspeed, knots true
         press_alt_meters  % Pressure altitude, meters
         press_alt_feet    % Pressure altitude, meters
+        descentrate_fps   % Calculated descent rate, feet per second
+        descentrate_mps   % Calculated descent rate, meters per second
     end
     
     properties (Access = private)
+        datafilepath
         nlines
         nheaderlines = 1;
         ndatapoints
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
+        propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
     end
     
     methods
@@ -65,7 +66,7 @@ classdef iDAQ < handle
             else
                 [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
                                               '*.csv', 'Decoded Raw Log File'; ...
-                                              '*_proc.mat', 'Processed Log File'}, ...
+                                              '*_proc*.mat', 'Processed Log File'}, ...
                                              'Select Wamore iDAQ data file' ...
                                               );
                 filepath = [pathname file];
@@ -74,7 +75,7 @@ classdef iDAQ < handle
             switch ext
                 case '.csv'
                     % Parse decoded CSV & process
-                    dataObj.filepath_CSV = filepath;
+                    dataObj.datafilepath = filepath;
                     processCSV(dataObj);
                 case '.mat'
                     % No parsing needed, dump data straight in
@@ -82,10 +83,78 @@ classdef iDAQ < handle
                     % Need to figure out how to best catch LOG.*** files,
                     % catch them here for now
                     % Decode raw data (LOG.***) and process the resulting CSV
-                    dataObj.filepath_LOG = filepath;
-                    dataObj.filepath_CSV = wamoredecoder(dataObj.filepath_LOG);
+                    dataObj.datafilepath = iDAQ.wamoredecoder(filepath);
                     processCSV(dataObj);
             end
+        end
+        
+        
+        function trim(dataObj)
+            idx = iDAQ.windowdata(dataObj.press_alt_feet);
+            allprops = properties(dataObj);
+            propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
+            
+            for ii = 1:length(propstotrim)
+                dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
+            end
+            
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+        end
+        
+        
+        function descentrate = finddescentrate(dataObj)
+            [idx, ax] = iDAQ.windowdata(dataObj.press_alt_feet);
+            t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
+            
+            % Because we just plotted altitude vs. data index, update the
+            % plot to altitude vs. time but save the limits and use them so
+            % the plot doesn't get zoomed out
+            oldxlim = floor(ax.XLim);
+            oldxlim(oldxlim < 1) = 1;  % Catch indexing issue if plot isn't zoomed "properly"
+            oldxlim(oldxlim > length(dataObj.press_alt_feet)) = length(dataObj.press_alt_feet);  % Catch indexing issue if plot isn't zoomed "properly"
+            oldylim = ax.YLim;
+            plot(t_seconds, dataObj.press_alt_feet, 'Parent', ax);
+            xlim(ax, t_seconds(oldxlim));
+            ylim(ax, oldylim);
+            
+            % Calculate and plot linear fit
+            myfit = polyfit(t_seconds(idx(1):idx(2)), dataObj.press_alt_feet(idx(1):idx(2)), 1);
+            altitude_feet_fit = t_seconds(idx(1):idx(2))*myfit(1) + myfit(2);
+            hold(ax, 'on');
+            plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', ax)
+            hold(ax, 'off');
+            
+            % Set outputs
+            descentrate = myfit(1);
+            dataObj.descentrate_fps = descentrate;
+            dataObj.descentrate_mps = descentrate/3.2808;
+        end
+        
+        
+        function savemat(dataObj)
+            % Save public properties as a vanilla data structure that
+            % doesn't require the class definition to load into MATLAB
+            allprops = properties(dataObj);
+            for ii = 1:length(allprops);
+                output.(allprops{ii}) = dataObj.(allprops{ii});
+            end
+            output.datafilepath = dataObj.datafilepath;
+            
+            [pathname, savefile] = fileparts(dataObj.datafilepath);
+            savefile(savefile=='.') = ''; % Clear out periods
+            
+            savefilepath = fullfile(pathname, [savefile '_proc_noclass.mat']);
+            save(savefilepath, 'output');
+        end
+        
+        
+        function save(dataObj)
+            % Save instance of object & its data
+            [pathname, savefile] = fileparts(dataObj.datafilepath);
+            savefile(savefile=='.') = ''; % Clear out periods
+
+            savefilepath = fullfile(pathname, [savefile '_proc.mat']);
+            save(savefilepath, 'dataObj');
         end
     end
     
@@ -93,10 +162,11 @@ classdef iDAQ < handle
     methods (Access = private)
         function processCSV(dataObj)
             dataObj.analysisdate = iDAQ.getdate();
-            dataObj.nlines = iDAQ.countlines(dataObj.filepath_CSV);
+            dataObj.nlines = iDAQ.countlines(dataObj.datafilepath);
             initializedata(dataObj);
             parselogCSV(dataObj);
             [dataObj.press_alt_meters, dataObj.press_alt_feet] = iDAQ.calcpress_alt(dataObj.pressure);
+            checkCSV(dataObj);
         end
         
         
@@ -146,7 +216,7 @@ classdef iDAQ < handle
         
         
         function parselogCSV(dataObj)
-            fID = fopen(dataObj.filepath_CSV);
+            fID = fopen(dataObj.datafilepath);
             
             hlines = dataObj.nheaderlines;
             step = 1;
@@ -210,6 +280,19 @@ classdef iDAQ < handle
             end
             fclose(fID);
         end
+        
+        
+        function checkCSV(dataObj)
+            % Check for zero time entries past the beginning of the data
+            % file and clear them.
+            idx = find(dataObj.time(2:end) <= 0) + 1;
+            allprops = properties(dataObj);
+            propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
+            
+            for ii = 1:length(propstotrim)
+                dataObj.(propstotrim{ii})(idx) = [];
+            end
+        end
     end
     
         
@@ -259,20 +342,31 @@ classdef iDAQ < handle
         
         
         function [CSVpath] = wamoredecoder(filepath)
-            [pathname, filename, ext] = fileparts(filepath);
-            startdir = cd(pathname);
-            file = [filename, ext];
-            CSVpath = [file '.csv'];
+            CSVpath = [filepath '.csv'];
+            [~, ~, ext] = fileparts(filepath);
             if ~exist(CSVpath, 'file')
-                fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
-                tic
-                [~, cmdout] = dos(['logdecoder.exe ' file]);
-                elapsedtime = toc;
-                fprintf('logdecoder.exe exited, elapsed time %.3f seconds\n', elapsedtime)
-                cd(startdir)
+                % Identify full path to Wamore's logdecoder executable.
+                % For now we'll assume that it's in the same directory as
+                % this m-file.
+                % Once AppLocker goes live on the DREN we will need to
+                % point to a whitelisted folder in order to decode iDAQ
+                % data.
+                logdecoderpath = cd;
+                if exist(fullfile(logdecoderpath, 'logdecoder.exe'), 'file')
+                    fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
+                    tic
+                    systemcall = sprintf('logdecoder.exe "%s"', filepath);
+                    [~, cmdout] = system(systemcall);
+                    elapsedtime = toc;
+                    fprintf('logdecoder.exe exited, elapsed time %.3f seconds\n', elapsedtime)
+                else
+                    err.identifier = 'iDAQ:wamoredecoder:decodernotfound';
+                    err.message = sprintf('Wamore logdecoder.exe not found, please place in ''%s''', logdecoderpath);
+                    err.stack = dbstack('-completenames');
+                    error(err);
+                end
             else
                 fprintf('Log %s already decoded, skipping decoder\n', regexprep(ext, '\.', ''))
-                cd(startdir)
             end
         end
         
@@ -305,6 +399,101 @@ classdef iDAQ < handle
             press = [1.139e5 1.013e5 8.988e4 7.950e4 7.012e4 6.166e4 5.405e4 4.722e4 4.111e4 3.565e4 3.080e4 2.650e4 1.211e4 5.529e3 2.549e3 1.197e3]; % Pressure, pascals
             press_alt_meters = interp1(press, alt, pressure, 'pchip');  % Pressure altitude, meters
             press_alt_feet   = press_alt_meters * 3.2808;
+        end
+        
+        
+        function [dataidx, ax] = windowdata(ydata)
+            h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag);
+            h.ax = axes('Parent', h.fig);
+            plot(ydata, 'Parent', h.ax);
+            
+            % Create our window lines
+            currxlim = xlim;
+            axeswidth = currxlim(2) - currxlim(1);
+            h.line_1 = line(ones(1, 2)*axeswidth*0.25, ylim(h.ax), ...
+                            'Color', 'g', ...
+                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
+                            );
+            h.line_2 = line(ones(1, 2)*axeswidth*0.75, ylim(h.ax), ...
+                            'Color', 'g', ...
+                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
+                            );
+            
+            % Add listeners to adjust the window lines if the axes limits
+            % are changed
+            xlisten = addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
+            ylisten = addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
+            
+            % Wait until the user hits ok before pulling the window data,
+            % this allows the user to resize/pan/zoom/ prior to windowing
+            uiwait(msgbox('Window Region of Interest Then Press OK'))
+            dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
+            
+            % Just in case check to make sure the lines are within axes limits
+            if dataidx(1) < 1
+                dataidx(1) = 1;
+            end
+            
+            if dataidx(2) > length(ydata)
+                dataidx(2) = length(ydata);
+            end
+            
+            delete([xlisten ylisten]);
+            ax = h.ax;
+        end
+    end
+    
+    
+    methods (Static, Access = private)
+        function startdrag(lineObj, ~, h)
+            h.fig.WindowButtonMotionFcn = {@iDAQ.dragline, h, lineObj};
+        end
+        
+        
+        function stopdrag(hObj, ~)
+            hObj.WindowButtonMotionFcn = '';
+        end
+        
+        
+        function checklinesx(~, ~, h)
+            currxlim = h.ax.XLim;
+            currlinex_1 = h.line_1.XData(1);
+            currlinex_2 = h.line_2.XData(1);
+            
+            if currlinex_1 < currxlim(1)
+                h.line_1.XData = [1, 1]*currxlim(1);
+            end
+            
+            if currlinex_1 > currxlim(2)
+                h.line_1.XData = [1, 1]*currxlim(2);
+            end
+            
+            if currlinex_2 < currxlim(1)
+                h.line_2.XData = [1, 1]*currxlim(1);
+            end
+            
+            if currlinex_2 > currxlim(2)
+                h.line_2.XData = [1, 1]*currxlim(2);
+            end
+            
+        end
+        
+        
+        function changelinesy(~, ~, h)
+            h.line_1.YData = ylim(h.ax);
+            h.line_2.YData = ylim(h.ax);
+        end
+
+        
+        function dragline(~, ~, h, lineObj)
+            currentX = h.ax.CurrentPoint(1, 1);
+            if currentX < h.ax.XLim(1)
+                lineObj.XData = [1, 1]*h.ax.XLim(1);
+            elseif currentX > h.ax.XLim(2)
+                lineObj.XData = [1, 1]*h.ax.XLim(2);
+            else
+                lineObj.XData = [1, 1]*currentX;
+            end
         end
     end
 end
