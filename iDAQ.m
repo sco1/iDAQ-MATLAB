@@ -3,7 +3,7 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
-        analysisdate
+        analysisdate      % Date of analysis, ISO 8601, yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
         gyro_y            % Y gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -56,6 +56,7 @@ classdef iDAQ < handle
         ndatapoints
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
+        propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
     end
     
     methods
@@ -91,14 +92,13 @@ classdef iDAQ < handle
         function trim(dataObj)
             idx = iDAQ.windowdata(dataObj.press_alt_feet);
             allprops = properties(dataObj);
-            propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};
-            propstotrim = allprops(~ismember(allprops, propstoignore));
+            propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
             
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
             
-            plot(dataObj.time/1000, dataObj.press_alt_feet);
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
         end
         
         
@@ -166,6 +166,7 @@ classdef iDAQ < handle
             initializedata(dataObj);
             parselogCSV(dataObj);
             [dataObj.press_alt_meters, dataObj.press_alt_feet] = iDAQ.calcpress_alt(dataObj.pressure);
+            checkCSV(dataObj);
         end
         
         
@@ -278,6 +279,19 @@ classdef iDAQ < handle
                 step = step + 1;
             end
             fclose(fID);
+        end
+        
+        
+        function checkCSV(dataObj)
+            % Check for zero time entries past the beginning of the data
+            % file and clear them.
+            idx = find(dataObj.time(2:end) <= 0) + 1;
+            allprops = properties(dataObj);
+            propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
+            
+            for ii = 1:length(propstotrim)
+                dataObj.(propstotrim{ii})(idx) = [];
+            end
         end
     end
     
