@@ -89,7 +89,7 @@ classdef iDAQ < handle
         
         
         function trim(dataObj)
-            [idx, ax] = iDAQ.windowdata(dataObj.press_alt_feet);
+            idx = iDAQ.windowdata(dataObj.press_alt_feet);
             allprops = properties(dataObj);
             propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};
             propstotrim = allprops(~ismember(allprops, propstoignore));
@@ -104,22 +104,24 @@ classdef iDAQ < handle
         
         function descentrate = finddescentrate(dataObj)
             [idx, ax] = iDAQ.windowdata(dataObj.press_alt_feet);
-            myfit = polyfit(dataObj.time(idx(1):idx(2)), dataObj.press_alt_feet(idx(1):idx(2)), 1);  % Calculate linear fit
-            altitude_feet_fit = dataObj.time(idx(1):idx(2)).*myfit(1) + myfit(2);  % Calculate altitude from linear fit
+            t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
             
             % Because we just plotted altitude vs. data index, update the
             % plot to altitude vs. time but save the limits and use them so
             % the plot doesn't get zoomed out
             oldxlim = floor(ax.XLim);
-            if oldxlim < 1  % Catch indexing issue if plot isn't zoomed "properly"
-                oldxlim = 1;
-            end
+            oldxlim(oldxlim < 1) = 1;  % Catch indexing issue if plot isn't zoomed "properly"
+            oldxlim(oldxlim > length(dataObj.press_alt_feet)) = length(dataObj.press_alt_feet);  % Catch indexing issue if plot isn't zoomed "properly"
             oldylim = ax.YLim;
-            plot(dataObj.time, dataObj.press_alt_feet, 'Parent', ax);
-            xlim(ax, dataObj.time(oldxlim));
+            plot(t_seconds, dataObj.press_alt_feet, 'Parent', ax);
+            xlim(ax, t_seconds(oldxlim));
             ylim(ax, oldylim);
+            
+            % Calculate and plot linear fit
+            myfit = polyfit(t_seconds(idx(1):idx(2)), dataObj.press_alt_feet(idx(1):idx(2)), 1);
+            altitude_feet_fit = t_seconds(idx(1):idx(2))*myfit(1) + myfit(2);
             hold(ax, 'on');
-            plot(dataObj.time(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', ax)
+            plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', ax)
             hold(ax, 'off');
             
             % Set outputs
@@ -400,8 +402,8 @@ classdef iDAQ < handle
                             'ButtonDownFcn', {@iDAQ.startdrag, h} ...
                             );
                         
-            addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
-            addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
+            xlisten = addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
+            ylisten = addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
             
             uiwait(msgbox('Window Region of Interest Then Press OK'))
             dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
@@ -414,7 +416,7 @@ classdef iDAQ < handle
                 dataidx(2) = length(ydata);
             end
             
-            delete([h.line_1, h.line_2]);
+            delete([xlisten ylisten]);
             ax = h.ax;
         end
     end
