@@ -405,23 +405,31 @@ classdef iDAQ < handle
         function [dataidx, ax] = windowdata(ydata)
             h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag);
             h.ax = axes('Parent', h.fig);
-            
             plot(ydata, 'Parent', h.ax);
-            h.line_1 = line([2 2], ylim(h.ax), ...
+            
+            % Create our window lines
+            currxlim = xlim;
+            axeswidth = currxlim(2) - currxlim(1);
+            h.line_1 = line(ones(1, 2)*axeswidth*0.25, ylim(h.ax), ...
                             'Color', 'g', ...
                             'ButtonDownFcn', {@iDAQ.startdrag, h} ...
                             );
-            h.line_2 = line([5 5], ylim(h.ax), ...
+            h.line_2 = line(ones(1, 2)*axeswidth*0.75, ylim(h.ax), ...
                             'Color', 'g', ...
                             'ButtonDownFcn', {@iDAQ.startdrag, h} ...
                             );
-                        
+            
+            % Add listeners to adjust the window lines if the axes limits
+            % are changed
             xlisten = addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
             ylisten = addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
             
+            % Wait until the user hits ok before pulling the window data,
+            % this allows the user to resize/pan/zoom/ prior to windowing
             uiwait(msgbox('Window Region of Interest Then Press OK'))
             dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
             
+            % Just in case check to make sure the lines are within axes limits
             if dataidx(1) < 1
                 dataidx(1) = 1;
             end
