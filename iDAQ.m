@@ -11,25 +11,25 @@ classdef iDAQ < handle
         accel_x           % X accelerometer output, Gs, with 0.00333 G resolution
         accel_y           % Y accelerometer output, Gs, with 0.00333 G resolution
         accel_z           % Z accelerometer output, Gs, with 0.00333 G resolution
-        link_1            % Raw strain link ADC data, must be converted to force
-        link_2            % Raw strain link ADC data, must be converted to force
-        link_3            % Raw strain link ADC data, must be converted to force
-        link_4            % Raw strain link ADC data, must be converted to force
-        link_5            % Raw strain link ADC data, must be converted to force
-        adc_1             % Internal DAQ value, engineering use only
-        adc_2             % On-board 5V supply monitor
-        adc_3             % Internal DAQ value, engineering use only
-        adc_4             % Internal DAQ value, engineering use only
-        adc_5             % Approximate battery voltage
-        adc_6             % On-board 3.3V supply monitor
-        adc_7             % User input analog voltage #1, 0V to 4.0V
-        adc_8             % User input analog voltage #2, 0V to 4.0V
-        adc_temp          % Internal DAQ value, engineering use only
-        din_1             % Digital input #1 - Lanyard switch status
-        din_2             % General purpose digital input: 0-Low 1-High
-        din_3             % General purpose digital input: 0-Low 1-High
-        din_4             % General purpose digital input: 0-Low 1-High
-        pwrsw             % Power switch status: 0-Pressed 1- Open
+%         link_1            % Raw strain link ADC data, must be converted to force
+%         link_2            % Raw strain link ADC data, must be converted to force
+%         link_3            % Raw strain link ADC data, must be converted to force
+%         link_4            % Raw strain link ADC data, must be converted to force
+%         link_5            % Raw strain link ADC data, must be converted to force
+%         adc_1             % Internal DAQ value, engineering use only
+%         adc_2             % On-board 5V supply monitor
+%         adc_3             % Internal DAQ value, engineering use only
+%         adc_4             % Internal DAQ value, engineering use only
+%         adc_5             % Approximate battery voltage
+%         adc_6             % On-board 3.3V supply monitor
+%         adc_7             % User input analog voltage #1, 0V to 4.0V
+%         adc_8             % User input analog voltage #2, 0V to 4.0V
+%         adc_temp          % Internal DAQ value, engineering use only
+%         din_1             % Digital input #1 - Lanyard switch status
+%         din_2             % General purpose digital input: 0-Low 1-High
+%         din_3             % General purpose digital input: 0-Low 1-High
+%         din_4             % General purpose digital input: 0-Low 1-High
+%         pwrsw             % Power switch status: 0-Pressed 1- Open
         pstemp            % Temperature reported by the pressure sensor, Celsius
         pressure          % Temperature reported by the pressure sensor, Pascals
         GPS_Msgs          % Number of NMEA GPS mesages received from the GPS module
@@ -66,9 +66,10 @@ classdef iDAQ < handle
             else
                 [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
                                               '*.csv', 'Decoded Raw Log File'; ...
-                                              '*_proc*.mat', 'Processed Log File'}, ...
+                                              '*_proc*.mat', 'Processed Log File'; ...
+                                              '*.*', 'All Files'}, ...
                                              'Select Wamore iDAQ data file' ...
-                                              );
+                                             );
                 filepath = [pathname file];
             end
             [~, ~, ext] = fileparts(filepath);
@@ -180,25 +181,25 @@ classdef iDAQ < handle
             dataObj.accel_x         = zeros(dataObj.ndatapoints, 1);  % X accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_y         = zeros(dataObj.ndatapoints, 1);  % Y accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_z         = zeros(dataObj.ndatapoints, 1);  % Z accelerometer output, Gs, with 0.00333 G resolution
-            dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
-            dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
-            dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
-            dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
-            dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
-            dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
-            dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
+%             dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
+%             dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
+%             dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
+%             dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
+%             dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
+%             dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
+%             dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
             dataObj.pstemp          = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Celsius
             dataObj.pressure        = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Pascals
             dataObj.GPS_Msgs        = zeros(dataObj.ndatapoints, 1);  % Number of NMEA GPS mesages received from the GPS module
@@ -243,25 +244,25 @@ classdef iDAQ < handle
                 dataObj.accel_x(idx_start:idx_end)         = segarray{5};
                 dataObj.accel_y(idx_start:idx_end)         = segarray{6};
                 dataObj.accel_z(idx_start:idx_end)         = segarray{7};
-                dataObj.link_1(idx_start:idx_end)          = segarray{8};
-                dataObj.link_2(idx_start:idx_end)          = segarray{9};
-                dataObj.link_3(idx_start:idx_end)          = segarray{10};
-                dataObj.link_4(idx_start:idx_end)          = segarray{11};
-                dataObj.link_5(idx_start:idx_end)          = segarray{12};
-                dataObj.adc_1(idx_start:idx_end)           = segarray{13};
-                dataObj.adc_2(idx_start:idx_end)           = segarray{14};
-                dataObj.adc_3(idx_start:idx_end)           = segarray{15};
-                dataObj.adc_4(idx_start:idx_end)           = segarray{16};
-                dataObj.adc_5(idx_start:idx_end)           = segarray{17};
-                dataObj.adc_6(idx_start:idx_end)           = segarray{18};
-                dataObj.adc_7(idx_start:idx_end)           = segarray{19};
-                dataObj.adc_8(idx_start:idx_end)           = segarray{20};
-                dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
-                dataObj.din_1(idx_start:idx_end)           = segarray{22};
-                dataObj.din_2(idx_start:idx_end)           = segarray{23};
-                dataObj.din_3(idx_start:idx_end)           = segarray{24};
-                dataObj.din_4(idx_start:idx_end)           = segarray{25};
-                dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
+%                 dataObj.link_1(idx_start:idx_end)          = segarray{8};
+%                 dataObj.link_2(idx_start:idx_end)          = segarray{9};
+%                 dataObj.link_3(idx_start:idx_end)          = segarray{10};
+%                 dataObj.link_4(idx_start:idx_end)          = segarray{11};
+%                 dataObj.link_5(idx_start:idx_end)          = segarray{12};
+%                 dataObj.adc_1(idx_start:idx_end)           = segarray{13};
+%                 dataObj.adc_2(idx_start:idx_end)           = segarray{14};
+%                 dataObj.adc_3(idx_start:idx_end)           = segarray{15};
+%                 dataObj.adc_4(idx_start:idx_end)           = segarray{16};
+%                 dataObj.adc_5(idx_start:idx_end)           = segarray{17};
+%                 dataObj.adc_6(idx_start:idx_end)           = segarray{18};
+%                 dataObj.adc_7(idx_start:idx_end)           = segarray{19};
+%                 dataObj.adc_8(idx_start:idx_end)           = segarray{20};
+%                 dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
+%                 dataObj.din_1(idx_start:idx_end)           = segarray{22};
+%                 dataObj.din_2(idx_start:idx_end)           = segarray{23};
+%                 dataObj.din_3(idx_start:idx_end)           = segarray{24};
+%                 dataObj.din_4(idx_start:idx_end)           = segarray{25};
+%                 dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
                 dataObj.pstemp(idx_start:idx_end)          = segarray{27};
                 dataObj.pressure(idx_start:idx_end)        = segarray{28};
                 dataObj.GPS_Msgs(idx_start:idx_end)        = segarray{29};
