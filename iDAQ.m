@@ -3,6 +3,7 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
+        datafilepath      % Absolute file path to analyzed data file
         analysisdate      % Date of analysis, ISO 8601, yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -50,13 +51,12 @@ classdef iDAQ < handle
     end
     
     properties (Access = private)
-        datafilepath
         nlines
         nheaderlines = 1;
         ndatapoints
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
-        propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
+        propstoignore = {'datafilepath', 'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
     end
     
     methods
