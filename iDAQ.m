@@ -57,6 +57,7 @@ classdef iDAQ < handle
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
         propstoignore = {'datafilepath', 'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
+        defaultwindowlength = 12;  % Default data windowing length, seconds
     end
     
     methods
@@ -90,9 +91,27 @@ classdef iDAQ < handle
         end
         
         
-        function trim(dataObj)
-            idx = iDAQ.windowdata(dataObj.press_alt_feet);
-            trimdata(dataObj, idx);            
+        function windowtrim(dataObj)
+            figure
+            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            
+            idx = iDAQ.windowdata(ls);
+            trimdata(dataObj, idx);
+            
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+        end
+        
+        
+        function fixedwindowtrim(dataObj, windowlength)
+            figure
+            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            
+            if nargin == 1
+                windowlength = dataObj.defaultwindowlength;
+            end
+            idx = iDAQ.fixedwindowdata(ls, windowlength);
+            trimdata(dataObj, idx);
+            
             plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
         end
         
@@ -108,22 +127,27 @@ classdef iDAQ < handle
         
         
         function descentrate = finddescentrate(dataObj)
-            [idx, ax] = iDAQ.windowdata(dataObj.press_alt_feet);
+            ydata = dataObj.press_alt_feet;
+            
+            h.fig = figure;
+            h.ax = axes;
+            h.ls = plot(h.ax, ydata);
+            idx = iDAQ.windowdata(h.ls);
             t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
             
             % Because we just plotted altitude vs. data index, update the
             % plot to altitude vs. time but save the limits and use them so
             % the plot doesn't get zoomed out
-            oldxlim = floor(ax.XLim);
+            oldxlim = floor(h.ax.XLim);
             oldxlim(oldxlim < 1) = 1;  % Catch indexing issue if plot isn't zoomed "properly"
-            oldxlim(oldxlim > length(dataObj.press_alt_feet)) = length(dataObj.press_alt_feet);  % Catch indexing issue if plot isn't zoomed "properly"
+            oldxlim(oldxlim > length(ydata)) = length(ydata);  % Catch indexing issue if plot isn't zoomed "properly"
             oldylim = ax.YLim;
-            plot(t_seconds, dataObj.press_alt_feet, 'Parent', ax);
+            plot(ax, t_seconds, ydata, 'Parent', ax);
             xlim(ax, t_seconds(oldxlim));
             ylim(ax, oldylim);
             
             % Calculate and plot linear fit
-            myfit = polyfit(t_seconds(idx(1):idx(2)), dataObj.press_alt_feet(idx(1):idx(2)), 1);
+            myfit = polyfit(t_seconds(idx(1):idx(2)), ydata(idx(1):idx(2)), 1);
             altitude_feet_fit = t_seconds(idx(1):idx(2))*myfit(1) + myfit(2);
             hold(ax, 'on');
             plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', ax)
@@ -416,7 +440,9 @@ classdef iDAQ < handle
         end
         
         
-        function [dataidx, ax] = windowdata(ydata)
+        function [dataidx] = windowdata(ls, waitboxBool)
+            % TODO: Update this inline documentation
+            
             % WINDOWDATA plots the input data array, ydata, with respect to
             % its data indices along with two vertical lines for the user 
             % to window the plotted data. 
@@ -429,48 +455,93 @@ classdef iDAQ < handle
             % Because ydata is plotted with respect to its data indices,
             % the indices are floored to the nearest integer in order to
             % mitigate indexing issues.
-            h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag); % Set the mouse button up Callback on figure creation
-            h.ax = axes('Parent', h.fig);
-            plot(ydata, 'Parent', h.ax);
+            ax = ls.Parent;
+            fig = ax.Parent;
+            fig.WindowButtonUpFcn = @iDAQ.stopdrag;  % Set the mouse button up Callback on figure creation
             
             % Create our window lines, set the default line X locations at
             % 25% and 75% of the axes limits
-            currxlim = xlim;
+            currxlim = xlim(ax);
             axeswidth = currxlim(2) - currxlim(1);
-            h.line_1 = line(ones(1, 2)*axeswidth*0.25, ylim(h.ax), ...
-                            'Color', 'g', ...
-                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
-                            );
-            h.line_2 = line(ones(1, 2)*axeswidth*0.75, ylim(h.ax), ...
-                            'Color', 'g', ...
-                            'ButtonDownFcn', {@iDAQ.startdrag, h} ...
-                            );
+            dragline(1) = line(ones(1, 2)*axeswidth*0.25, ylim(ax), ...
+                            'Color', 'g', 'ButtonDownFcn', @(s,e)iDAQ.startdrag(s, ax));
+            dragline(2) = line(ones(1, 2)*axeswidth*0.75, ylim(ax), ...
+                            'Color', 'g', 'ButtonDownFcn', @(s,e)iDAQ.startdrag(s, ax));
             
             % Add appropriate listeners to the X and Y axes to ensure
             % window lines are visible and the appropriate height
-            xlisten = addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
-            ylisten = addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
+            xlisten = addlistener(ax, 'XLim', 'PostSet', @(s,e)iDAQ.checklinesx(ax, dragline));
+            ylisten = addlistener(ax, 'YLim', 'PostSet', @(s,e)iDAQ.changelinesy(ax, dragline));
             
-            % Use uiwait to allow the user to manipulate the axes and
-            % window lines as desired
-            uiwait(msgbox('Window Region of Interest Then Press OK'))
+            % Unless passed a secondary, False argument, use uiwait to 
+            % allow the user to manipulate the axes and window lines as 
+            % desired. Otherwise it is assumed that uiresume is called
+            % elsewhere to unblock execution
+            if nargin == 2 && ~waitboxBool
+                uiwait
+            else
+                uiwait(msgbox('Window Region of Interest Then Press OK'))
+            end
             
-            % Set outputs
-            dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
-            ax = h.ax;
+            % Set output
+            dataidx(1) = find(ls.XData >= dragline(1).XData(1), 1);
+            dataidx(2) = find(ls.XData >= dragline(2).XData(1), 1);
+            dataidx = sort(dataidx);
             
             % Clean up
             delete([xlisten, ylisten]);
+            delete(dragline)
+            fig.WindowButtonUpFcn = '';
+        end
+        
+        
+        function [dataidx] = fixedwindowdata(ls, windowlength, waitboxBool)
+            ax = ls.Parent;
+            fig = ax.Parent;
+            fig.WindowButtonUpFcn = @iDAQ.stopdrag;  % Set the mouse button up Callback on figure creation
+            
+            currxlim = xlim(ax);
+            currylim = ylim(ax);
+            axeswidth = currxlim(2) - currxlim(1);
+
+            leftx = axeswidth*0.25;
+            rightx = leftx + windowlength;
+            vertices = [leftx, currylim(1); ...   % Bottom left corner
+                        rightx, currylim(1); ...  % Bottom right corner
+                        rightx, currylim(2); ...  % Top right corner
+                        leftx, currylim(2)];      % Top left corner
+            dragpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
+                                'FaceColor', 'green', 'FaceAlpha', 0.3, ...
+                                'ButtonDownFcn', {@iDAQ.startdragwindow, ax});
+            
+            % Unless passed a tertiary, False argument, use uiwait to 
+            % allow the user to manipulate the axes and window lines as 
+            % desired. Otherwise it is assumed that uiresume is called
+            % elsewhere to unblock execution
+            if nargin == 3 && ~waitboxBool
+                uiwait
+            else
+                uiwait(msgbox('Window Region of Interest Then Press OK'))
+            end
+            
+            % Set output
+            dataidx(1) = find(ls.XData >= dragpatch.XData(1), 1);
+            dataidx(2) = find(ls.XData >= dragpatch.XData(2), 1);
+            dataidx = sort(dataidx);
+            
+            % Clean up
+            delete(dragpatch)
+            fig.WindowButtonUpFcn = '';
         end
     end
     
     
     methods (Static, Access = private)
-        function startdrag(lineObj, ~, h)
+        function startdrag(lineObj, ax)
             % Helper function for data windowing, sets figure
             % WindowButtonMotionFcn callback to dragline helper
             % while line is being clicked on & dragged
-            h.fig.WindowButtonMotionFcn = {@iDAQ.dragline, h, lineObj};
+            ax.Parent.WindowButtonMotionFcn = @(s,e)iDAQ.linedrag(h, lineObj);
         end
         
         
@@ -482,30 +553,30 @@ classdef iDAQ < handle
         end
         
         
-        function checklinesx(~, ~, h)
+        function checklinesx(ax, dragline)
             % Helper function for data windowing, checks the X indices of
             % the vertical lines to make sure they're still within the X
             % axis limits of the data axes object
-            currxlim = h.ax.XLim;
-            currlinex_1 = h.line_1.XData(1);
-            currlinex_2 = h.line_2.XData(1);
+            currxlim = ax.XLim;
+            currlinex(1) = dragline(1).XData(1);
+            currlinex(2) = dragline(2).XData(1);
             
             % Set X coordinate of any line outside the axes limits to the
             % axes limit
-            if currlinex_1 < currxlim(1)
-                h.line_1.XData = [1, 1]*currxlim(1);
+            if currlinex(1) < currxlim(1)
+                dragline(1).XData = [1, 1]*currxlim(1);
             end
             
-            if currlinex_1 > currxlim(2)
-                h.line_1.XData = [1, 1]*currxlim(2);
+            if currlinex(1) > currxlim(2)
+                dragline(1).XData = [1, 1]*currxlim(2);
             end
             
-            if currlinex_2 < currxlim(1)
-                h.line_2.XData = [1, 1]*currxlim(1);
+            if currlinex(2) < currxlim(1)
+                dragline(2).XData = [1, 1]*currxlim(1);
             end
             
-            if currlinex_2 > currxlim(2)
-                h.line_2.XData = [1, 1]*currxlim(2);
+            if currlinex(2) > currxlim(2)
+               dragline(2).XData = [1, 1]*currxlim(2);
             end
             
         end
@@ -519,7 +590,7 @@ classdef iDAQ < handle
         end
 
         
-        function dragline(~, ~, h, lineObj)
+        function linedrag(h, lineObj)
             % Helper function for data windowing, updates the x coordinate
             % of the dragged line to the current location of the mouse
             % button
@@ -532,6 +603,32 @@ classdef iDAQ < handle
                 lineObj.XData = [1, 1]*h.ax.XLim(2);
             else
                 lineObj.XData = [1, 1]*currentX;
+            end
+        end
+        
+        function startdragwindow(patchObj, ed, ax)
+            ax.Parent.WindowButtonMotionFcn = @(s,e)iDAQ.dragwindow(ax, patchObj);
+            patchObj.UserData = ed.IntersectionPoint(1);  % Store initial click location to find a delta later
+        end
+        
+        
+        function dragwindow(ax, patchObj)
+            oldmouseX = patchObj.UserData;
+            newmouseX = ax.CurrentPoint(1);
+            patchObj.UserData = newmouseX;
+            
+            dx = newmouseX - oldmouseX;
+            newpatchX = patchObj.XData + dx; 
+            
+            % Prevent dragging outside of the current axes limits
+            if newpatchX(1) < ax.XLim(1)
+                newdx = patchObj.XData - ax.XLim(1);
+                patchObj.XData = patchObj.XData + newdx;
+            elseif newpatchX(2) > ax.XLim(2)
+                newdx = patchObj.XData - ax.XLim(2);
+                patchObj.XData = patchObj.XData + newdx;
+            else
+                patchObj.XData = newpatchX;
             end
         end
     end
