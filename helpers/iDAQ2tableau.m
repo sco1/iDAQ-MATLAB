@@ -1,8 +1,7 @@
 function iDAQ2tableau(pathname)
 % Batch process a directory of 'zoomed' SLAAD iDAQ data
 if nargin == 0
-%     pathname = uigetdir('', 'Select Processed SLAAD Data Directory');
-    pathname = 'C:\Project Data\General MATLAB\Wamore-IMU\test data';
+    pathname = uigetdir('', 'Select Processed SLAAD Data Directory');
 end
 
 if ~ischar(pathname) || exist(pathname, 'dir') ~= 7
