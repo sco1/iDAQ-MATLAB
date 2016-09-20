@@ -3,6 +3,7 @@ classdef iDAQ < handle
     %   Detailed explanation goes here
     
     properties
+        datafilepath      % Absolute file path to analyzed data file
         analysisdate      % Date of analysis, ISO 8601, yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -11,25 +12,25 @@ classdef iDAQ < handle
         accel_x           % X accelerometer output, Gs, with 0.00333 G resolution
         accel_y           % Y accelerometer output, Gs, with 0.00333 G resolution
         accel_z           % Z accelerometer output, Gs, with 0.00333 G resolution
-        link_1            % Raw strain link ADC data, must be converted to force
-        link_2            % Raw strain link ADC data, must be converted to force
-        link_3            % Raw strain link ADC data, must be converted to force
-        link_4            % Raw strain link ADC data, must be converted to force
-        link_5            % Raw strain link ADC data, must be converted to force
-        adc_1             % Internal DAQ value, engineering use only
-        adc_2             % On-board 5V supply monitor
-        adc_3             % Internal DAQ value, engineering use only
-        adc_4             % Internal DAQ value, engineering use only
-        adc_5             % Approximate battery voltage
-        adc_6             % On-board 3.3V supply monitor
-        adc_7             % User input analog voltage #1, 0V to 4.0V
-        adc_8             % User input analog voltage #2, 0V to 4.0V
-        adc_temp          % Internal DAQ value, engineering use only
-        din_1             % Digital input #1 - Lanyard switch status
-        din_2             % General purpose digital input: 0-Low 1-High
-        din_3             % General purpose digital input: 0-Low 1-High
-        din_4             % General purpose digital input: 0-Low 1-High
-        pwrsw             % Power switch status: 0-Pressed 1- Open
+%         link_1            % Raw strain link ADC data, must be converted to force
+%         link_2            % Raw strain link ADC data, must be converted to force
+%         link_3            % Raw strain link ADC data, must be converted to force
+%         link_4            % Raw strain link ADC data, must be converted to force
+%         link_5            % Raw strain link ADC data, must be converted to force
+%         adc_1             % Internal DAQ value, engineering use only
+%         adc_2             % On-board 5V supply monitor
+%         adc_3             % Internal DAQ value, engineering use only
+%         adc_4             % Internal DAQ value, engineering use only
+%         adc_5             % Approximate battery voltage
+%         adc_6             % On-board 3.3V supply monitor
+%         adc_7             % User input analog voltage #1, 0V to 4.0V
+%         adc_8             % User input analog voltage #2, 0V to 4.0V
+%         adc_temp          % Internal DAQ value, engineering use only
+%         din_1             % Digital input #1 - Lanyard switch status
+%         din_2             % General purpose digital input: 0-Low 1-High
+%         din_3             % General purpose digital input: 0-Low 1-High
+%         din_4             % General purpose digital input: 0-Low 1-High
+%         pwrsw             % Power switch status: 0-Pressed 1- Open
         pstemp            % Temperature reported by the pressure sensor, Celsius
         pressure          % Temperature reported by the pressure sensor, Pascals
         GPS_Msgs          % Number of NMEA GPS mesages received from the GPS module
@@ -50,13 +51,12 @@ classdef iDAQ < handle
     end
     
     properties (Access = private)
-        datafilepath
         nlines
         nheaderlines = 1;
         ndatapoints
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
-        propstoignore = {'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
+        propstoignore = {'datafilepath', 'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
     end
     
     methods
@@ -66,9 +66,10 @@ classdef iDAQ < handle
             else
                 [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
                                               '*.csv', 'Decoded Raw Log File'; ...
-                                              '*_proc*.mat', 'Processed Log File'}, ...
+                                              '*_proc*.mat', 'Processed Log File'; ...
+                                              '*.*', 'All Files'}, ...
                                              'Select Wamore iDAQ data file' ...
-                                              );
+                                             );
                 filepath = [pathname file];
             end
             [~, ~, ext] = fileparts(filepath);
@@ -91,14 +92,18 @@ classdef iDAQ < handle
         
         function trim(dataObj)
             idx = iDAQ.windowdata(dataObj.press_alt_feet);
+            trimdata(dataObj, idx);            
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+        end
+        
+        
+        function trimdata(dataObj, idx)
             allprops = properties(dataObj);
             propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
             
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
-            
-            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
         end
         
         
@@ -180,25 +185,25 @@ classdef iDAQ < handle
             dataObj.accel_x         = zeros(dataObj.ndatapoints, 1);  % X accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_y         = zeros(dataObj.ndatapoints, 1);  % Y accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_z         = zeros(dataObj.ndatapoints, 1);  % Z accelerometer output, Gs, with 0.00333 G resolution
-            dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-            dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
-            dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
-            dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
-            dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
-            dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
-            dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-            dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
-            dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-            dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
+%             dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+%             dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
+%             dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
+%             dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
+%             dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
+%             dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
+%             dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+%             dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
+%             dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+%             dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
             dataObj.pstemp          = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Celsius
             dataObj.pressure        = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Pascals
             dataObj.GPS_Msgs        = zeros(dataObj.ndatapoints, 1);  % Number of NMEA GPS mesages received from the GPS module
@@ -243,25 +248,25 @@ classdef iDAQ < handle
                 dataObj.accel_x(idx_start:idx_end)         = segarray{5};
                 dataObj.accel_y(idx_start:idx_end)         = segarray{6};
                 dataObj.accel_z(idx_start:idx_end)         = segarray{7};
-                dataObj.link_1(idx_start:idx_end)          = segarray{8};
-                dataObj.link_2(idx_start:idx_end)          = segarray{9};
-                dataObj.link_3(idx_start:idx_end)          = segarray{10};
-                dataObj.link_4(idx_start:idx_end)          = segarray{11};
-                dataObj.link_5(idx_start:idx_end)          = segarray{12};
-                dataObj.adc_1(idx_start:idx_end)           = segarray{13};
-                dataObj.adc_2(idx_start:idx_end)           = segarray{14};
-                dataObj.adc_3(idx_start:idx_end)           = segarray{15};
-                dataObj.adc_4(idx_start:idx_end)           = segarray{16};
-                dataObj.adc_5(idx_start:idx_end)           = segarray{17};
-                dataObj.adc_6(idx_start:idx_end)           = segarray{18};
-                dataObj.adc_7(idx_start:idx_end)           = segarray{19};
-                dataObj.adc_8(idx_start:idx_end)           = segarray{20};
-                dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
-                dataObj.din_1(idx_start:idx_end)           = segarray{22};
-                dataObj.din_2(idx_start:idx_end)           = segarray{23};
-                dataObj.din_3(idx_start:idx_end)           = segarray{24};
-                dataObj.din_4(idx_start:idx_end)           = segarray{25};
-                dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
+%                 dataObj.link_1(idx_start:idx_end)          = segarray{8};
+%                 dataObj.link_2(idx_start:idx_end)          = segarray{9};
+%                 dataObj.link_3(idx_start:idx_end)          = segarray{10};
+%                 dataObj.link_4(idx_start:idx_end)          = segarray{11};
+%                 dataObj.link_5(idx_start:idx_end)          = segarray{12};
+%                 dataObj.adc_1(idx_start:idx_end)           = segarray{13};
+%                 dataObj.adc_2(idx_start:idx_end)           = segarray{14};
+%                 dataObj.adc_3(idx_start:idx_end)           = segarray{15};
+%                 dataObj.adc_4(idx_start:idx_end)           = segarray{16};
+%                 dataObj.adc_5(idx_start:idx_end)           = segarray{17};
+%                 dataObj.adc_6(idx_start:idx_end)           = segarray{18};
+%                 dataObj.adc_7(idx_start:idx_end)           = segarray{19};
+%                 dataObj.adc_8(idx_start:idx_end)           = segarray{20};
+%                 dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
+%                 dataObj.din_1(idx_start:idx_end)           = segarray{22};
+%                 dataObj.din_2(idx_start:idx_end)           = segarray{23};
+%                 dataObj.din_3(idx_start:idx_end)           = segarray{24};
+%                 dataObj.din_4(idx_start:idx_end)           = segarray{25};
+%                 dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
                 dataObj.pstemp(idx_start:idx_end)          = segarray{27};
                 dataObj.pressure(idx_start:idx_end)        = segarray{28};
                 dataObj.GPS_Msgs(idx_start:idx_end)        = segarray{29};
@@ -298,6 +303,8 @@ classdef iDAQ < handle
         
     methods (Static)
         function date = getdate()
+            % Generate current local timestamp and format according to
+            % ISO 8601: yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
             if ~verLessThan('MATLAB', '8.4')  % datetime added in R2014b
                 timenow = datetime('now', 'TimeZone', 'local');
                 formatstr = sprintf('yyyy-mm-ddTHH:MM:SS%sZ', char(tzoffset(timenow)));
@@ -307,33 +314,40 @@ classdef iDAQ < handle
                 formatstr = sprintf('yyyy-mm-ddTHH:MM:SS%i:00Z', UTCoffset);
             end
             
-            date = datestr(timenow, formatstr);  % ISO 8601 format
+            date = datestr(timenow, formatstr);
         end
         
         
         function nlines = countlines(filepath)
-            % Count the number of lines present in the specified file.
-            % filepath should be an absolute path
-            
-            filepath = fullfile(filepath);  % Make sure we're using the correct OS file separators
+            % COUNTLINES counts the number of lines present in the 
+            % specified file, filepath, passed as an absolute path.
+            % COUNTLINES attempts to utilize OS specific calls but utilizes
+            % MATLAB's built-ins as a fallback.
             
             % Attempt to use system specific calls, otherwise use MATLAB
             if ispc
-                syscall = sprintf('find /v /c "" "%s"', filepath);
+                syscall = sprintf('find /v /c "" "%s"', filepath);  % Count lines in file
                 [~, cmdout] = system(syscall);
+                % cmdout is of form: ---------- filepath: nlines
+                % We can parse this with a regex that searches for 1 or
+                % more digits anchored by a colon + whitespace
                 tmp = regexp(cmdout, '(?<=(:\s))(\d*)', 'match');
                 nlines = str2double(tmp{1});
             elseif ismac || isunix
                 syscall = sprintf('wc -l < "%s"', filepath);
                 [~, cmdout] = system(syscall);
+                % wc -l returns number of lines directly
                 nlines = str2double(cmdout);
             else
                 % Can't determine OS, use MATLAB instead
                 fID = fopen(filepath, 'rt');
                 
+                blocksize = 16384;  % Size of block to read in, bytes
                 nlines = 0;
                 while ~feof(fID)
-                    nlines = nlines + sum(fread(fID, 16384, 'char') == char(10));
+                    % Read in CSV file as binary file in chunks, count the
+                    % number of line feed characters (ASCII 10)
+                    nlines = nlines + sum(fread(fID, blocksize, 'char') == char(10));
                 end
                 
                 fclose(fID);
@@ -403,11 +417,24 @@ classdef iDAQ < handle
         
         
         function [dataidx, ax] = windowdata(ydata)
-            h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag);
+            % WINDOWDATA plots the input data array, ydata, with respect to
+            % its data indices along with two vertical lines for the user 
+            % to window the plotted data. 
+            % 
+            % Execution is blocked by UIWAIT and MSGBOX to allow the user 
+            % to zoom/pan the axes and manipulate the window lines as 
+            % desired. Once the dialog is closed the data indices of the 
+            % window lines, dataidx, and handle to the axes are returned.
+            %
+            % Because ydata is plotted with respect to its data indices,
+            % the indices are floored to the nearest integer in order to
+            % mitigate indexing issues.
+            h.fig = figure('WindowButtonUpFcn', @iDAQ.stopdrag); % Set the mouse button up Callback on figure creation
             h.ax = axes('Parent', h.fig);
             plot(ydata, 'Parent', h.ax);
             
-            % Create our window lines
+            % Create our window lines, set the default line X locations at
+            % 25% and 75% of the axes limits
             currxlim = xlim;
             axeswidth = currxlim(2) - currxlim(1);
             h.line_1 = line(ones(1, 2)*axeswidth*0.25, ylim(h.ax), ...
@@ -419,47 +446,52 @@ classdef iDAQ < handle
                             'ButtonDownFcn', {@iDAQ.startdrag, h} ...
                             );
             
-            % Add listeners to adjust the window lines if the axes limits
-            % are changed
+            % Add appropriate listeners to the X and Y axes to ensure
+            % window lines are visible and the appropriate height
             xlisten = addlistener(h.ax, 'XLim', 'PostSet', @(hObj,eventdata) iDAQ.checklinesx(hObj, eventdata, h));
             ylisten = addlistener(h.ax, 'YLim', 'PostSet', @(hObj,eventdata) iDAQ.changelinesy(hObj, eventdata, h));
             
-            % Wait until the user hits ok before pulling the window data,
-            % this allows the user to resize/pan/zoom/ prior to windowing
+            % Use uiwait to allow the user to manipulate the axes and
+            % window lines as desired
             uiwait(msgbox('Window Region of Interest Then Press OK'))
+            
+            % Set outputs
             dataidx = floor(sort([h.line_1.XData(1), h.line_2.XData(1)]));
-            
-            % Just in case check to make sure the lines are within axes limits
-            if dataidx(1) < 1
-                dataidx(1) = 1;
-            end
-            
-            if dataidx(2) > length(ydata)
-                dataidx(2) = length(ydata);
-            end
-            
-            delete([xlisten ylisten]);
             ax = h.ax;
+            
+            % Clean up
+            delete([xlisten, ylisten]);
         end
     end
     
     
     methods (Static, Access = private)
         function startdrag(lineObj, ~, h)
+            % Helper function for data windowing, sets figure
+            % WindowButtonMotionFcn callback to dragline helper
+            % while line is being clicked on & dragged
             h.fig.WindowButtonMotionFcn = {@iDAQ.dragline, h, lineObj};
         end
         
         
         function stopdrag(hObj, ~)
+            % Helper function for data windowing, clears figure window
+            % WindowButtonMotionFcn callback when mouse button is released
+            % after dragging the line
             hObj.WindowButtonMotionFcn = '';
         end
         
         
         function checklinesx(~, ~, h)
+            % Helper function for data windowing, checks the X indices of
+            % the vertical lines to make sure they're still within the X
+            % axis limits of the data axes object
             currxlim = h.ax.XLim;
             currlinex_1 = h.line_1.XData(1);
             currlinex_2 = h.line_2.XData(1);
             
+            % Set X coordinate of any line outside the axes limits to the
+            % axes limit
             if currlinex_1 < currxlim(1)
                 h.line_1.XData = [1, 1]*currxlim(1);
             end
@@ -480,13 +512,20 @@ classdef iDAQ < handle
         
         
         function changelinesy(~, ~, h)
+            % Helper function for data windowing, sets the height of both
+            % vertical lines to the height of the axes object
             h.line_1.YData = ylim(h.ax);
             h.line_2.YData = ylim(h.ax);
         end
 
         
         function dragline(~, ~, h, lineObj)
+            % Helper function for data windowing, updates the x coordinate
+            % of the dragged line to the current location of the mouse
+            % button
             currentX = h.ax.CurrentPoint(1, 1);
+            
+            % Prevent dragging outside of the current axes limits
             if currentX < h.ax.XLim(1)
                 lineObj.XData = [1, 1]*h.ax.XLim(1);
             elseif currentX > h.ax.XLim(2)
