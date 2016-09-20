@@ -92,14 +92,18 @@ classdef iDAQ < handle
         
         function trim(dataObj)
             idx = iDAQ.windowdata(dataObj.press_alt_feet);
+            trimdata(dataObj, idx);            
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+        end
+        
+        
+        function trimdata(dataObj, idx)
             allprops = properties(dataObj);
             propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
             
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
-            
-            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
         end
         
         
