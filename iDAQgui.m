@@ -43,16 +43,16 @@ classdef iDAQgui < handle
                                              'String', 'Window', 'Callback', @(s,e)guiObj.windowdata());
             guiObj.fixedwindowbtn = uicontrol('Parent', guiObj.trimpanel, 'Style', 'pushbutton', ...
                                              'Units', 'Normalized', 'Position', [0.1 0.375 0.6 0.25], ...
-                                             'String', 'Fixed Window');
+                                             'String', 'Fixed Window', 'Callback', @(s,e)guiObj.fixedwindowdata());
             guiObj.fixedwindowlbl = uicontrol('Parent', guiObj.trimpanel, 'Style', 'text', ...
-                                              'Units', 'Normalized', 'Position', [0.725 0.6, 0.25 0.1], ...
-                                              'String', 'Window Width:');
+                                              'Units', 'Normalized', 'Position', [0.70 0.6, 0.3 0.1], ...
+                                              'String', 'Window Width (s):');
             guiObj.fixedwindoweb = uicontrol('Parent', guiObj.trimpanel, 'Style', 'edit', ...
                                              'Units', 'Normalized', 'Position', [0.725 0.38 0.25 0.22], ...
                                              'String', '12');
             guiObj.savetrimbtn = uicontrol('Parent', guiObj.trimpanel, 'Style', 'pushbutton', ...
                                            'Units', 'Normalized', 'Position', [0.1 0.05 0.6 0.25], ...
-                                           'String', 'Save Trimmed Data');
+                                           'String', 'Save Trimmed Data', 'Callback', @(s,e)guiObj.iDAQdata.save());
             guiObj.donetrimbtn = uicontrol('Parent', guiObj.trimpanel, 'Style', 'pushbutton', ...
                                            'Units', 'Normalized', 'Position', [0.02 0.05 0.96 0.9], ...
                                            'String', 'Done Windowing', 'Visible', 'off', ...
@@ -82,12 +82,12 @@ classdef iDAQgui < handle
             % that are not vectors of data
             propstoignore = iDAQgui.getprivateproperty(guiObj.iDAQdata, 'propstoignore');
             propstoignore = [propstoignore, {'GPS_Valid', 'GPS_Mode', 'GPS_DateTime'}];  % Add a couple more fields to ignore
-            datafieldnames = flipud(setdiff(fieldnames(guiObj.iDAQdata), propstoignore));  % TODO: fix this flip so XYZ accel/gyro are in the right order
+            datafieldnames = setdiff(fieldnames(guiObj.iDAQdata), propstoignore);  % TODO: fix this flip so XYZ accel/gyro are in the right order
             
             % Update axes data dropdown strings appropriately
-            guiObj.xdatadropdown.String = datafieldnames;
-            guiObj.ydatadropdown.String = datafieldnames;
-            guiObj.ydatadropdown.Value = 5;  % Set initial plot to time vs. pressure altitude (ft MSL)
+            guiObj.xdatadropdown.String = {'time'};  % Force time on x axis for now
+            guiObj.ydatadropdown.String = flipud(setdiff(datafieldnames, 'time'));  % Remove time from y axis dropdown
+            guiObj.ydatadropdown.Value = 4;  % Set initial plot to time vs. pressure altitude (ft MSL)
         end
         
         
@@ -99,7 +99,7 @@ classdef iDAQgui < handle
             xdata = guiObj.iDAQdata.(xdd.String{xdd.Value});  % Data selected by dropdown
             ydata = guiObj.iDAQdata.(ydd.String{ydd.Value});  % Data selected by dropdown
             
-            plot(guiObj.mainaxes, xdata, ydata);            
+            plot(guiObj.mainaxes, xdata, ydata);
         end
         
         
@@ -109,10 +109,12 @@ classdef iDAQgui < handle
             axeswidth = currxlim(2) - currxlim(1);
             dragline(1) = line(ones(1, 2)*axeswidth*0.25, ylim(guiObj.mainaxes), ...
                                'Color', 'g', ...
-                               'ButtonDownFcn', {@iDAQgui.startdrag, guiObj.mainaxes});
+                               'ButtonDownFcn', {@iDAQgui.startdragline, guiObj.mainaxes});
             dragline(2) = line(ones(1, 2)*axeswidth*0.75, ylim(guiObj.mainaxes), ...
                                'Color', 'g', ...
-                               'ButtonDownFcn', {@iDAQgui.startdrag, guiObj.mainaxes});
+                               'ButtonDownFcn', {@iDAQgui.startdragline, guiObj.mainaxes});
+                           
+            % TODO: Add listeners for axes pan/zoom
             
             % Wait until donetrimbtn fires uiresume, then hide it again
             guiObj.donetrimbtn.Visible = 'on';
@@ -129,10 +131,54 @@ classdef iDAQgui < handle
             dataidx(1) = find(xdata >= dragline(1).XData(1), 1);
             dataidx(2) = find(xdata >= dragline(2).XData(1), 1);
             dataidx = sort(dataidx);
+            % TODO: Check to make sure our indices are valid
             guiObj.iDAQdata.trimdata(dataidx);  % Invoke native data trimming
             
             % Clean up and replot
             delete(dragline);
+            guiObj.updateplot()
+            guiObj.mainfig.WindowButtonUpFcn = '';
+        end
+        
+        
+        function fixedwindowdata(guiObj)
+            guiObj.mainfig.WindowButtonUpFcn = @iDAQgui.stopdrag;
+            currxlim = xlim(guiObj.mainaxes);
+            currylim = ylim(guiObj.mainaxes);
+            axeswidth = currxlim(2) - currxlim(1);
+
+            leftx = axeswidth*0.25;
+            rightx = axeswidth*0.25 + str2double(guiObj.fixedwindoweb.String)*1000; % Convert edit box to milliseconds
+            vertices = [leftx, currylim(1); ...   % Bottom left corner
+                        rightx, currylim(1); ...  % Bottom right corner
+                        rightx, currylim(2); ...  % Top right corner
+                        leftx, currylim(2)];      % Top left corner
+            windowpatch = patch('Vertices', vertices, 'Faces', [1 2 3 4], ...
+                                'FaceColor', 'green', 'FaceAlpha', 0.3, ...
+                                'ButtonDownFcn', {@iDAQgui.startdragwindow, guiObj.mainaxes});
+            
+            % TODO: Add listeners for axes pan/zoom
+            
+            % Wait until donetrimbtn fires uiresume, then hide it again
+            guiObj.donetrimbtn.Visible = 'on';
+            uiwait
+            guiObj.donetrimbtn.Visible = 'off';
+
+            % Use line indices to trim the data
+            % Find where the X index of the dragline first matches the
+            % plotted data
+            % Since find is being used, there can be weird behavior if
+            % non-increasing data has been plotted
+            xdd = guiObj.xdatadropdown;  % Shortcut for brevity
+            xdata = guiObj.iDAQdata.(xdd.String{xdd.Value});  % Data selected by dropdown
+            dataidx(1) = find(xdata >= windowpatch.XData(1), 1);
+            dataidx(2) = find(xdata >= windowpatch.XData(2), 1);
+            dataidx = sort(dataidx);
+            % TODO: Check to make sure our indices are valid
+            guiObj.iDAQdata.trimdata(dataidx);  % Invoke native data trimming
+            
+            % Clean up and replot
+            delete(windowpatch);
             guiObj.updateplot()
             guiObj.mainfig.WindowButtonUpFcn = '';
         end
@@ -168,7 +214,7 @@ classdef iDAQgui < handle
         end
         
         
-        function startdrag(lineObj, ~, ax)
+        function startdragline(lineObj, ~, ax)
             % Helper function for data windowing, sets figure
             % WindowButtonMotionFcn callback to dragline helper
             % while line is being clicked on & dragged
@@ -189,6 +235,39 @@ classdef iDAQgui < handle
                 lineObj.XData = [1, 1]*ax.XLim(2);
             else
                 lineObj.XData = [1, 1]*currentX;
+            end
+        end
+        
+        
+        function startdragwindow(patchObj, ed, ax)
+            % Helper function for data windowing, sets figure
+            % WindowButtonMotionFcn callback to dragline helper
+            % while line is being clicked on & dragged
+            ax.Parent.WindowButtonMotionFcn = @(s,e)iDAQgui.dragwindow(ax, patchObj);
+            patchObj.UserData = ed.IntersectionPoint(1);  % Store initial click location to find a delta later
+        end
+        
+        
+        function dragwindow(ax, patchObj)
+            % Helper function for data windowing, updates the x coordinate
+            % of the dragged line to the current location of the mouse
+            % button
+            oldmouseX = patchObj.UserData;
+            newmouseX = ax.CurrentPoint(1);
+            patchObj.UserData = newmouseX;
+            
+            dx = newmouseX - oldmouseX;
+            newpatchX = patchObj.XData + dx; 
+            
+            % Prevent dragging outside of the current axes limits
+            if newpatchX(1) < ax.XLim(1)
+                newdx = patchObj.XData - ax.XLim(1);
+                patchObj.XData = patchObj.XData + newdx;
+            elseif newpatchX(2) > ax.XLim(2)
+                newdx = patchObj.XData - ax.XLim(2);
+                patchObj.XData = patchObj.XData + newdx;
+            else
+                patchObj.XData = newpatchX;
             end
         end
     end
