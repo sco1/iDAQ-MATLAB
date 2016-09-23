@@ -1,6 +1,17 @@
 classdef iDAQ < handle
-    %UNTITLED Summary of this class goes here
-    %   Detailed explanation goes here
+    % IDAQ Provides a set of data processing and data visualization tools
+    % for Wamore's iDAQ
+    % 
+    % iDAQ() prompts the user to select an iDAQ data file to process and
+    % returns an instance of the iDAQ class.
+    % iDAQ(filepath) processes the iDAQ data file specified by filepath and
+    % returns an instance of the iDAQ class.
+    % 
+    % iDAQ(...) supports the following filetypes:
+    %     LOG.*       Raw iDAQ log file output
+    %     *.WAM       Renamed raw iDAQ log file output
+    %     *.csv       CSV file in the format output by Wamore's log decoder
+    %     *_proc.mat  Saved instance of an iDAQ class instance
     
     properties
         datafilepath      % Absolute file path to analyzed data file
@@ -13,6 +24,7 @@ classdef iDAQ < handle
         accel_x           % X accelerometer output, Gs, with 0.00333 G resolution
         accel_y           % Y accelerometer output, Gs, with 0.00333 G resolution
         accel_z           % Z accelerometer output, Gs, with 0.00333 G resolution
+
 %         link_1            % Raw strain link ADC data, must be converted to force
 %         link_2            % Raw strain link ADC data, must be converted to force
 %         link_3            % Raw strain link ADC data, must be converted to force
@@ -32,6 +44,7 @@ classdef iDAQ < handle
 %         din_3             % General purpose digital input: 0-Low 1-High
 %         din_4             % General purpose digital input: 0-Low 1-High
 %         pwrsw             % Power switch status: 0-Pressed 1- Open
+
         pstemp            % Temperature reported by the pressure sensor, Celsius
         pressure          % Temperature reported by the pressure sensor, Pascals
         GPS_Msgs          % Number of NMEA GPS mesages received from the GPS module
@@ -66,9 +79,9 @@ classdef iDAQ < handle
             if exist('filepath', 'var')
                 filepath = fullfile(filepath);  % Ensure correct file separators
             else
-                [file, pathname] = uigetfile({'LOG.*', 'Raw Log File'; ...
-                                              '*.csv', 'Decoded Raw Log File'; ...
-                                              '*_proc*.mat', 'Processed Log File'; ...
+                [file, pathname] = uigetfile({'LOG.*;*.WAM', 'Raw iDAQ Log File (LOG.*, *.WAM)'; ...
+                                              '*.csv', 'Decoded Raw Log File (*.csv)'; ...
+                                              '*_proc.mat', 'Processed Log File (*_proc.mat)'; ...
                                               '*.*', 'All Files'}, ...
                                              'Select Wamore iDAQ data file' ...
                                              );
@@ -187,11 +200,10 @@ classdef iDAQ < handle
             output.datafilepath = dataObj.datafilepath;
             
             [pathname, savefile] = fileparts(dataObj.datafilepath);
-            savefile(savefile=='.') = ''; % Clear out periods
-            
-            savefilepath = fullfile(pathname, [savefile '_proc_noclass.mat']);
+            savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
             save(savefilepath, 'output');
             
+            % Print status message if we've passed isverbose as true
             if nargin == 2
                 if isverbose
                     fprintf('Bare *.mat file saved to ''%s''\n', savefilepath);
@@ -203,12 +215,10 @@ classdef iDAQ < handle
         function save(dataObj, isverbose)
             % Save instance of object & its data
             [pathname, savefile] = fileparts(dataObj.datafilepath);
-            savefile(savefile=='.') = ''; % Clear out periods
-
-            savefilepath = fullfile(pathname, [savefile '_proc.mat']);
+            savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
             save(savefilepath, 'dataObj');
             
-            
+            % Print status message if we've passed isverbose as true
             if nargin == 2
                 if isverbose
                     fprintf('iDAQ class instance saved to ''%s''\n', savefilepath);
@@ -415,7 +425,7 @@ classdef iDAQ < handle
         
         function [CSVpath] = wamoredecoder(filepath)
             CSVpath = [filepath '.csv'];
-            [~, ~, ext] = fileparts(filepath);
+            [~, filename, ext] = fileparts(filepath);
             if ~exist(CSVpath, 'file')
                 % Identify full path to Wamore's logdecoder executable.
                 % For now we'll assume that it's in the same directory as
@@ -425,7 +435,7 @@ classdef iDAQ < handle
                 % data.
                 logdecoderpath = cd;
                 if exist(fullfile(logdecoderpath, 'logdecoder.exe'), 'file')
-                    fprintf('Decoding Log %s ... ', regexprep(ext, '\.', ''))
+                    fprintf('Decoding ''%s'' ... ', [filename ext])
                     tic
                     systemcall = sprintf('logdecoder.exe "%s"', filepath);
                     [~, cmdout] = system(systemcall);
@@ -438,7 +448,7 @@ classdef iDAQ < handle
                     error(err);
                 end
             else
-                fprintf('Log %s already decoded, skipping decoder\n', regexprep(ext, '\.', ''))
+                fprintf('Log file, ''%s'', already decoded. Skipping decoder\n', [filename ext])
             end
         end
         
@@ -527,8 +537,8 @@ classdef iDAQ < handle
             delete(dragline)
             fig.WindowButtonUpFcn = '';
         end
-        
-        
+
+
         function [dataidx] = fixedwindowdata(ls, windowlength, waitboxBool)
             ax = ls.Parent;
             fig = ax.Parent;
@@ -567,13 +577,15 @@ classdef iDAQ < handle
             delete(dragpatch)
             fig.WindowButtonUpFcn = '';
         end
-        
+
+
         function batch(filestoparse)
             % Input cell array of full file paths, otherwise leave blank
             % for directory processing
             if nargin == 0
                 pathname = uigetdir('Select iDAQ data directory for processing');
-                listing = dir(fullfile(pathname, 'LOG.*'));
+                listing = [dir(fullfile(pathname, 'LOG.*')); ...
+                           dir(fullfile(pathname, '*.WAM'))];
                 filestoparse = fullfile(pathname, {listing.name});
             end
             
@@ -582,6 +594,17 @@ classdef iDAQ < handle
                 verboseoutput = true;
                 tmp.save(verboseoutput)
             end
+        end
+
+
+        function [filepath] = sanefilepath(filepath)
+            % Helper to get the right output format for various filenames
+            
+            % Reformat *.WAM filename
+            filepath = regexprep(filepath, '\.WAM', '');
+            
+            % Reformat LOG.*
+            filepath = regexprep(filepath, '\.(\d*)(?=\_)', '$1');
         end
     end
     
