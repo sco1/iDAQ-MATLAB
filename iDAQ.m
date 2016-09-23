@@ -160,7 +160,7 @@ classdef iDAQ < handle
         end
         
         
-        function savemat(dataObj)
+        function savemat(dataObj, isverbose)
             % Save public properties as a vanilla data structure that
             % doesn't require the class definition to load into MATLAB
             allprops = properties(dataObj);
@@ -174,16 +174,29 @@ classdef iDAQ < handle
             
             savefilepath = fullfile(pathname, [savefile '_proc_noclass.mat']);
             save(savefilepath, 'output');
+            
+            if nargin == 2
+                if isverbose
+                    fprintf('Bare *.mat file saved to ''%s''\n', savefilepath);
+                end
+            end
         end
         
         
-        function save(dataObj)
+        function save(dataObj, isverbose)
             % Save instance of object & its data
             [pathname, savefile] = fileparts(dataObj.datafilepath);
             savefile(savefile=='.') = ''; % Clear out periods
 
             savefilepath = fullfile(pathname, [savefile '_proc.mat']);
             save(savefilepath, 'dataObj');
+            
+            
+            if nargin == 2
+                if isverbose
+                    fprintf('iDAQ class instance saved to ''%s''\n', savefilepath);
+                end
+            end
         end
     end
     
@@ -532,6 +545,22 @@ classdef iDAQ < handle
             % Clean up
             delete(dragpatch)
             fig.WindowButtonUpFcn = '';
+        end
+        
+        function batch(filestoparse)
+            % Input cell array of full file paths, otherwise leave blank
+            % for directory processing
+            if nargin == 0
+                pathname = uigetdir('Select iDAQ data directory for processing');
+                listing = dir(fullfile(pathname, 'LOG.*'));
+                filestoparse = fullfile(pathname, {listing.name});
+            end
+            
+            for ii = 1:numel(filestoparse)
+                tmp = iDAQ(filestoparse{ii});
+                verboseoutput = true;
+                tmp.save(verboseoutput)
+            end
         end
     end
     
