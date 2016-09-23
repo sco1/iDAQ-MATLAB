@@ -5,6 +5,7 @@ classdef iDAQ < handle
     properties
         datafilepath      % Absolute file path to analyzed data file
         analysisdate      % Date of analysis, ISO 8601, yyyy-mm-ddTHH:MM:SS+/-HH:MMZ
+        dropID            % User Specified numeric drop ID
         time              % Time, milliseconds, since DAQ was powered on
         gyro_x            % X gyro output, deg/sec, with 0.05 deg/sec resolution
         gyro_y            % Y gyro output, deg/sec, with 0.05 deg/sec resolution
@@ -197,6 +198,10 @@ classdef iDAQ < handle
                     fprintf('iDAQ class instance saved to ''%s''\n', savefilepath);
                 end
             end
+        end
+        
+        function addID(dataObj, ID)
+            dataObj.dropID = ID;
         end
     end
     
