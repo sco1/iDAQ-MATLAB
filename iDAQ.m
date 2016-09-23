@@ -57,7 +57,7 @@ classdef iDAQ < handle
         ndatapoints
         chunksize = 5000;
         formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
-        propstoignore = {'datafilepath', 'analysisdate', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
+        propstoignore = {'datafilepath', 'analysisdate', 'dropID', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
         defaultwindowlength = 12;  % Default data windowing length, seconds
     end
     
@@ -75,13 +75,29 @@ classdef iDAQ < handle
                 filepath = [pathname file];
             end
             [~, ~, ext] = fileparts(filepath);
-            switch ext
+            switch lower(ext)
                 case '.csv'
                     % Parse decoded CSV & process
                     dataObj.datafilepath = filepath;
                     processCSV(dataObj);
                 case '.mat'
-                    % No parsing needed, dump data straight in
+                    % See if we have a saved instance of this class
+                    matfileinfo = whos('-file', filepath);
+                    iDAQtest = strcmp({matfileinfo(:).class}, 'iDAQ');
+                    if any(iDAQtest)
+                        % Only use first instance of an iDAQ class instance
+                        varidx = find(iDAQtest, 1);
+                        tmp = load(filepath, matfileinfo(varidx).name);
+                        dataObj = tmp.(matfileinfo(varidx).name);  % Pull the object out of the structure
+                    else
+                        % No iDAQ class instances, error out
+                        % Eventually we'll want to check for the bare *.mat
+                        % files here
+                        err.identifier = 'iDAQ:wamoredecoder:unsupportedMATfile';
+                        err.message = sprintf('MAT file, ''%s'', does not contain any supported variables\n', filepath);
+                        err.stack = dbstack('-completenames');
+                        error(err);
+                    end                
                 otherwise
                     % Need to figure out how to best catch LOG.*** files,
                     % catch them here for now
