@@ -2,16 +2,33 @@ classdef iDAQ < handle
     % IDAQ Provides a set of data processing and data visualization tools
     % for Wamore's iDAQ
     % 
-    % iDAQ() prompts the user to select an iDAQ data file to process and
-    % returns an instance of the iDAQ class.
-    % iDAQ(filepath) processes the iDAQ data file specified by filepath and
-    % returns an instance of the iDAQ class.
+    % iDAQobj = iDAQ() prompts the user to select an iDAQ data file to 
+    % process and returns an instance of the iDAQ class, iDAQobj.
+    %
+    % iDAQobj = iDAQ(filepath) processes the iDAQ data file specified by 
+    % filepath and returns an instance of the iDAQ class, iDAQobj.
     % 
-    % iDAQ(...) supports the following filetypes:
+    % iDAQ supports the following file types:
     %     LOG.*       Raw iDAQ log file output
     %     *.WAM       Renamed raw iDAQ log file output
     %     *.csv       CSV file in the format output by Wamore's log decoder
     %     *_proc.mat  Saved instance of an iDAQ class instance
+    %
+    % iDAQ Methods:
+    %     addID           - Associate a unique ID with the loaded data set
+    %     finddescentrate - Interactively identify descent rate
+    %     fixedwindowtrim - Interactively trim all loaded iDAQ data using a fixed time window
+    %     save            - Save the current iDAQ class instance
+    %     savemat         - Save the loaded iDAQ data to a MAT file
+    %     trimdata        - Trim all loaded data using user-specified indices
+    %     windowtrim      - Interactively window and trim all loaded iDAQ data
+    %
+    % iDAQ Static Methods:
+    %     batch           - Batch process a list or directory of raw iDAQ log files
+    %     calcpress_alt   - Map barometric pressure to Standard Atmosphere pressure altitude
+    %     fixedwindowdata - Interactively obtain data indices of a fixed-width plot window
+    %     wamoredecoder   - Pass the input filepath to Wamore's log decoder via a native system call
+    %     windowdata      - Interactively obtain data indices of a user-specified plot window
     
     properties
         datafilepath      % Absolute file path to analyzed data file
@@ -76,9 +93,13 @@ classdef iDAQ < handle
     
     methods
         function dataObj = iDAQ(filepath)
-            if exist('filepath', 'var')
+            % iDAQ Class Constructor
+            
+            % Choose correct behavior based on # of arguments passed
+            if nargin == 1
                 filepath = fullfile(filepath);  % Ensure correct file separators
             else
+                % Prompt user to select a file if no input is passed
                 [file, pathname] = uigetfile({'LOG.*;*.WAM', 'Raw iDAQ Log File (LOG.*, *.WAM)'; ...
                                               '*.csv', 'Decoded Raw Log File (*.csv)'; ...
                                               '*_proc.mat', 'Processed Log File (*_proc.mat)'; ...
@@ -87,13 +108,20 @@ classdef iDAQ < handle
                                              );
                 filepath = [pathname file];
             end
+            
+            % Choose correct processing behavior based on file extension
             [~, ~, ext] = fileparts(filepath);
             switch lower(ext)
                 case '.csv'
+                    % Assume CSV file with the same format as the raw
+                    % decoder CSV output
                     % Parse decoded CSV & process
                     dataObj.datafilepath = filepath;
                     processCSV(dataObj);
                 case '.mat'
+                    % Assume a saved instance of the iDAQ class, so this
+                    % can be loaded in directly
+                    
                     % See if we have a saved instance of this class
                     matfileinfo = whos('-file', filepath);
                     iDAQtest = strcmp({matfileinfo(:).class}, 'iDAQ');
@@ -110,11 +138,21 @@ classdef iDAQ < handle
                         err.message = sprintf('MAT file, ''%s'', does not contain any supported variables\n', filepath);
                         err.stack = dbstack('-completenames');
                         error(err);
-                    end                
+                    end
+                case '.wam'
+                    % Assume *.wam file is the renamed raw binary output
+                    % from the iDAQ. Same processing path as LOG.*** files.
+                    
+                    % Decode raw data and process the resulting CSV
+                    dataObj.datafilepath = iDAQ.wamoredecoder(filepath);
+                    processCSV(dataObj);
                 otherwise
                     % Need to figure out how to best catch LOG.*** files,
-                    % catch them here for now
-                    % Decode raw data (LOG.***) and process the resulting CSV
+                    % catch them here for now. This will also catch invalid
+                    % files, which we can rely on error checking to toss
+                    % out as we go through our methods.
+                    
+                    % Decode raw LOG.*** file and process the resulting CSV
                     dataObj.datafilepath = iDAQ.wamoredecoder(filepath);
                     processCSV(dataObj);
             end
@@ -157,13 +195,22 @@ classdef iDAQ < handle
         
         
         function descentrate = finddescentrate(dataObj)
+            % FINDDESCENTRATE Plots the pressure altitude (ft) data and
+            % prompts the user to window the region over which to calculate
+            % the descent rate. The average descent rate (ft/s and m/s) is 
+            % calculated over this windowed region and used to update 
+            % the object's descentrate_fps and descentrate_mps properties.
+            %
+            % descentrate (ft/s) is also an explicit output of this method
+            
+            % Spawn a new figure window & plot our barometric pressure
+            % data to it
             ydata = dataObj.press_alt_feet;
             
             h.fig = figure;
             h.ax = axes;
             h.ls = plot(h.ax, ydata);
-            idx = iDAQ.windowdata(h.ls);
-            t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
+            idx = iDAQ.windowdata(h.ls);  % Call data windowing helper to get indices
             
             % Because we just plotted altitude vs. data index, update the
             % plot to altitude vs. time but save the limits and use them so
@@ -172,6 +219,8 @@ classdef iDAQ < handle
             oldxlim(oldxlim < 1) = 1;  % Catch indexing issue if plot isn't zoomed "properly"
             oldxlim(oldxlim > length(ydata)) = length(ydata);  % Catch indexing issue if plot isn't zoomed "properly"
             oldylim = ax.YLim;
+            
+            t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
             plot(ax, t_seconds, ydata, 'Parent', ax);
             xlim(ax, t_seconds(oldxlim));
             ylim(ax, oldylim);
@@ -191,15 +240,27 @@ classdef iDAQ < handle
         
         
         function savemat(dataObj, isverbose)
-            % Save public properties as a vanilla data structure that
-            % doesn't require the class definition to load into MATLAB
+            % SAVEMAT Saves a copy of the iDAQ class instance's public 
+            % properties to a MAT file as a vanilla data structure that
+            % doesn't require the class definition to load into MATLAB.
+            %
+            % MAT file is saved to the same directory as the analyzed data
+            % file
+            %
+            % Accepts an optional isverbose boolean value to specify
+            % whether or not to display a message on save
+            
+            % Get property names and use them to loop through using dynamic
+            % field referencing
             allprops = properties(dataObj);
             for ii = 1:length(allprops);
                 output.(allprops{ii}) = dataObj.(allprops{ii});
             end
             output.datafilepath = dataObj.datafilepath;
             
+            % Save our file in the same directory as the analyzed data
             [pathname, savefile] = fileparts(dataObj.datafilepath);
+            % Use helper to fix filename readability
             savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
             save(savefilepath, 'output');
             
@@ -213,8 +274,19 @@ classdef iDAQ < handle
         
         
         function save(dataObj, isverbose)
-            % Save instance of object & its data
+            % SAVE Saves the current instance of the iDAQ object to a MAT
+            % file. Loading data from this MAT file will require the iDAQ
+            % class definition be present in MATLAB's path.
+            %
+            % MAT file is saved to the same directory as the analyzed data
+            % file
+            %
+            % Accepts an optional isverbose boolean value to specify
+            % whether or not to display a message on save
+            
+            % Save our file in the same directory as the analyzed data
             [pathname, savefile] = fileparts(dataObj.datafilepath);
+            % Use helper to fix filename readability
             savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
             save(savefilepath, 'dataObj');
             
@@ -225,6 +297,7 @@ classdef iDAQ < handle
                 end
             end
         end
+        
         
         function addID(dataObj, ID)
             dataObj.dropID = ID;
