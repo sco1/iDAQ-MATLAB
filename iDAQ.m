@@ -10,7 +10,7 @@ classdef iDAQ < handle
     % 
     % iDAQ supports the following file types:
     %     LOG.*       Raw iDAQ log file output
-    %     *.WAM       Renamed raw iDAQ log file output
+    %     *.iDAQ      Renamed raw iDAQ log file output
     %     *.csv       CSV file in the format output by Wamore's log decoder
     %     *_proc.mat  Saved instance of an iDAQ class instance
     %
@@ -100,7 +100,7 @@ classdef iDAQ < handle
                 filepath = fullfile(filepath);  % Ensure correct file separators
             else
                 % Prompt user to select a file if no input is passed
-                [file, pathname] = uigetfile({'LOG.*;*.WAM', 'Raw iDAQ Log File (LOG.*, *.WAM)'; ...
+                [file, pathname] = uigetfile({'LOG.*;*.iDAQ', 'Raw iDAQ Log File (LOG.*, *.iDAQ)'; ...
                                               '*.csv', 'Decoded Raw Log File (*.csv)'; ...
                                               '*_proc.mat', 'Processed Log File (*_proc.mat)'; ...
                                               '*.*', 'All Files'}, ...
@@ -139,8 +139,8 @@ classdef iDAQ < handle
                         err.stack = dbstack('-completenames');
                         error(err);
                     end
-                case '.wam'
-                    % Assume *.wam file is the renamed raw binary output
+                case '.iDAQ'
+                    % Assume *.iDAQ file is the renamed raw binary output
                     % from the iDAQ. Same processing path as LOG.*** files.
                     
                     % Decode raw data and process the resulting CSV
@@ -658,7 +658,7 @@ classdef iDAQ < handle
             if nargin == 0
                 pathname = uigetdir('Select iDAQ data directory for processing');
                 listing = [dir(fullfile(pathname, 'LOG.*')); ...
-                           dir(fullfile(pathname, '*.WAM'))];
+                           dir(fullfile(pathname, '*.iDAQ'))];
                 filestoparse = fullfile(pathname, {listing.name});
             end
             
@@ -673,8 +673,8 @@ classdef iDAQ < handle
         function [filepath] = sanefilepath(filepath)
             % Helper to get the right output format for various filenames
             
-            % Reformat *.WAM filename
-            filepath = regexprep(filepath, '\.WAM', '');
+            % Reformat *.iDAQ filename
+            filepath = regexprep(filepath, '\.iDAQ', '');
             
             % Reformat LOG.*
             filepath = regexprep(filepath, '\.(\d*)(?=\_)', '$1');
