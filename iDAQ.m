@@ -94,6 +94,22 @@ classdef iDAQ < handle
     methods
         function dataObj = iDAQ(filepath)
             % iDAQ Class Constructor
+            %
+            % iDAQobj = iDAQ() prompts the user to select an iDAQ data file to 
+            % process and returns an instance of the iDAQ class, iDAQobj.
+            %
+            % iDAQobj = iDAQ(filepath) processes the iDAQ data file specified by 
+            % filepath and returns an instance of the iDAQ class, iDAQobj.
+            %
+            % The file extension of filepath is parsed and used to select
+            % the appropriate processing pipeline. The constructor returns
+            % an instance of the iDAQ class.
+            %
+            % Processing pipeline:
+            %     LOG.*  - Call Wamore logdecoder.exe, parse resulting *.CSV into iDAQ class properties
+            %     *.iDAQ - Call Wamore logdecoder.exe, parse resulting *.CSV into iDAQ class properties
+            %     *.csv  - Parse into iDAQ class properties
+            %     *.mat  - Load iDAQ class instance directly
             
             % Choose correct behavior based on # of arguments passed
             if nargin == 1
@@ -135,11 +151,11 @@ classdef iDAQ < handle
                         % Eventually we'll want to check for the bare *.mat
                         % files here
                         err.identifier = 'iDAQ:wamoredecoder:unsupportedMATfile';
-                        err.message = sprintf('MAT file, ''%s'', does not contain any supported variables\n', filepath);
+                        err.message = sprintf('MAT file, ''%s'', does not contain any supported data types\n', filepath);
                         err.stack = dbstack('-completenames');
                         error(err);
                     end
-                case '.iDAQ'
+                case '.idaq'
                     % Assume *.iDAQ file is the renamed raw binary output
                     % from the iDAQ. Same processing path as LOG.*** files.
                     
@@ -160,34 +176,83 @@ classdef iDAQ < handle
         
         
         function windowtrim(dataObj)
-            figure
-            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            % WINDOWTRIM spawns a new figure window and axes object and
+            % plots the iDAQ's pressure altitude (feet) vs. time (seconds)
+            %
+            % Two draggable lines are generated in the axes object, which
+            % the user can drag to specify an arbitrary time window. UIWAIT
+            % and MSGBOX is used to block MATLAB execution until the user
+            % closes the MSGBOX dialog. When execution resumes, the data
+            % indices are used to trim all of the appropriate internal data
             
+            % Spawn new figure window and plot pressure altitude (feet) vs.
+            % time (seconds). Because time is stored internally as integer
+            % milliseconds from power on, need to convert to a double to
+            % avoid integer division and then divide by 1000 to get seconds
+            fig = figure;
+            ax = axes('Parent', fig);
+            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet, 'Parent', ax);
+            
+            % Call the data windowing helper to obtain data indices.
             idx = iDAQ.windowdata(ls);
-            trimdata(dataObj, idx);
+            trimdata(dataObj, idx);  % Trim our internal data
             
-            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            % Update the plot with the windowed data
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet, 'Parent', ax);
         end
         
         
         function fixedwindowtrim(dataObj, windowlength)
-            figure
-            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            % FIXEDWINDOWTRIM spawns a new figure window and axes object and
+            % plots the iDAQ's pressure altitude (feet) vs. time (seconds)
+            %
+            % A draggable fixed window with length, windowlength, in 
+            % seconds, is generated in the axes object, which the user can 
+            % drag to choose the time window. If windowlength is not 
+            % specified, the default value from the object's private 
+            % properties is used. UIWAIT and MSGBOX is used to block MATLAB
+            % execution until the user closes the MSGBOX dialog. When 
+            % execution resumes, the data indices are used to trim all of
+            % the appropriate internal data.
             
+            % Spawn new figure window and plot pressure altitude (feet) vs.
+            % time (seconds). Because time is stored internally as integer
+            % milliseconds from power on, need to convert to a double to
+            % avoid integer division and then divide by 1000 to get seconds
+            fig = figure;
+            ax = axes('Parent', fig);
+            ls = plot(double(dataObj.time)/1000, dataObj.press_alt_feet, 'Parent', ax);
+            
+            % Call the data fixed windowing helper to obtain data indices
+            % Check to see if windowlength is provided, if not then we
+            % default to the value stored in the object's private
+            % properties
             if nargin == 1
                 windowlength = dataObj.defaultwindowlength;
             end
             idx = iDAQ.fixedwindowdata(ls, windowlength);
-            trimdata(dataObj, idx);
+            trimdata(dataObj, idx);  % Trim the internal data
             
-            plot(double(dataObj.time)/1000, dataObj.press_alt_feet);
+            % Update the plot with the windowed data
+            plot(double(dataObj.time)/1000, dataObj.press_alt_feet, 'Parent', ax);
         end
         
         
         function trimdata(dataObj, idx)
+            % TRIMDATA iterates through all timeseries data stored as
+            % properties of the iDAQ object and trims them according to the
+            % input data indices. idx is a 1x2 double specifying start and 
+            % end indices of the data to retain. All other data is discarded
+            
+            % Get public properties of our iDAQ object. There are a few
+            % properties with data that is not time based, a list of these
+            % is stored in our private properties, so we can use this list
+            % to exclude them from the data trimming.
             allprops = properties(dataObj);
             propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
             
+            % Iterate through properties to trim and discard data that does
+            % not fall between our start and end indices
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(idx(1):idx(2));
             end
@@ -300,6 +365,8 @@ classdef iDAQ < handle
         
         
         function addID(dataObj, ID)
+            % Can probably remove this and just utilize set since we're
+            % already inheriting from the handles class
             dataObj.dropID = ID;
         end
     end
@@ -307,9 +374,18 @@ classdef iDAQ < handle
     
     methods (Access = private)
         function processCSV(dataObj)
-            dataObj.analysisdate = iDAQ.getdate();
+            % PROCESSCSV is a helper function for processing the CSV file
+            % output by Wamore's iDAQ logdecoder.exe. This helper governs
+            % the CSV processing flow.
+            
+            dataObj.analysisdate = iDAQ.getdate();  % Set analysis date
+            
+            % Preallocate our data arrays
             dataObj.nlines = iDAQ.countlines(dataObj.datafilepath);
             initializedata(dataObj);
+            
+            % Parse the CSV data, calculate pressure altitudes, and check
+            % for 'bad' CSV data
             parselogCSV(dataObj);
             [dataObj.press_alt_meters, dataObj.press_alt_feet] = iDAQ.calcpress_alt(dataObj.pressure);
             checkCSV(dataObj);
@@ -317,6 +393,8 @@ classdef iDAQ < handle
         
         
         function initializedata(dataObj)
+            %  INITIALIZEDATA preallocates our data arrays based on the
+            %  number of data lines
             dataObj.ndatapoints = dataObj.nlines - dataObj.nheaderlines;
             
             dataObj.time            = zeros(dataObj.ndatapoints, 1, 'uint32');  % Time, milliseconds, since DAQ was powered on
@@ -362,6 +440,13 @@ classdef iDAQ < handle
         
         
         function parselogCSV(dataObj)
+            % PARSELOGCSV parses data from the CSV file output by Wamore's
+            % iDAQ logdecoder.exe. As a carryover from legacy data, the CSV
+            % data is read in by chunks. Historically this was done in the
+            % context of 2-stage parachute systems so we could discard all
+            % data before the main parachute opened. Because there is
+            % a minimal processing time difference, this behavior is
+            % retained in case the legacy behavior is desired in the future
             fID = fopen(dataObj.datafilepath);
             
             hlines = dataObj.nheaderlines;
@@ -429,12 +514,24 @@ classdef iDAQ < handle
         
         
         function checkCSV(dataObj)
-            % Check for zero time entries past the beginning of the data
-            % file and clear them.
+            % CHECKSV looks for 'bad' data in the data file output by 
+            % Wamore's iDAQ logdecoder.exe. This data is characterized by 
+            % zero time entries past the beginning of the data file. If
+            % these values are found their corresponding data row is
+            % cleared from all time-based data.
+            
+            % Find any zero time entries
             idx = find(dataObj.time(2:end) <= 0) + 1;
+            
+            % Get public properties of our iDAQ object. There are a few
+            % properties with data that is not time based, a list of these
+            % is stored in our private properties, so we can use this list
+            % to exclude them from the data trimming.
             allprops = properties(dataObj);
             propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
             
+            % Iterate through properties to trim and discard data that does
+            % not fall between our start and end indices
             for ii = 1:length(propstotrim)
                 dataObj.(propstotrim{ii})(idx) = [];
             end
@@ -497,15 +594,18 @@ classdef iDAQ < handle
         
         
         function [CSVpath] = wamoredecoder(filepath)
+            % WAMOREDECODER utilizes a system call to Wamore's iDAQ
+            % logdecoder.exe to decode the raw iDAQ data. Because
+            % logdecoder.exe accepts absolute filepaths, it is assumed that
+            % there is a copy of the executable in the same directory as
+            % the iDAQ class definition *.m file. An error will be thrown
+            % if the executable cannot be found.
             CSVpath = [filepath '.csv'];
             [~, filename, ext] = fileparts(filepath);
             if ~exist(CSVpath, 'file')
                 % Identify full path to Wamore's logdecoder executable.
                 % For now we'll assume that it's in the same directory as
                 % this m-file.
-                % Once AppLocker goes live on the DREN we will need to
-                % point to a whitelisted folder in order to decode iDAQ
-                % data.
                 logdecoderpath = cd;
                 if exist(fullfile(logdecoderpath, 'logdecoder.exe'), 'file')
                     fprintf('Decoding ''%s'' ... ', [filename ext])
@@ -548,7 +648,10 @@ classdef iDAQ < handle
         
         
         function [press_alt_meters, press_alt_feet] = calcpress_alt(pressure)
-            % Determine altitude based on pressure
+            % CALCPRESS_ALT maps barometric pressure data to Standard Day 
+            % Atmospheric conditions. The pressure lapse rate is used to
+            % generate an array to pass to interp1 in order to map the
+            % input data to the Standard Atmosphere.
             % Need to revisit to evaluate effect of temperature lapse on calculations
             alt = [-1000:1000:10000 15000:5000:30000];  % Altitude, meters
             press = [1.139e5 1.013e5 8.988e4 7.950e4 7.012e4 6.166e4 5.405e4 4.722e4 4.111e4 3.565e4 3.080e4 2.650e4 1.211e4 5.529e3 2.549e3 1.197e3]; % Pressure, pascals
@@ -558,20 +661,24 @@ classdef iDAQ < handle
         
         
         function [dataidx] = windowdata(ls, waitboxBool)
-            % TODO: Update this inline documentation
-            
-            % WINDOWDATA plots the input data array, ydata, with respect to
-            % its data indices along with two vertical lines for the user 
-            % to window the plotted data. 
+            % WINDOWDATA generates two draggable vertical lines in the 
+            % parent axes of the input lineseries, ls, for the user to
+            % use to window the data plotted with the lineseries.
             % 
             % Execution is blocked by UIWAIT and MSGBOX to allow the user 
             % to zoom/pan the axes and manipulate the window lines as 
             % desired. Once the dialog is closed the data indices of the 
-            % window lines, dataidx, and handle to the axes are returned.
+            % window lines in the XData of the input lineseries is returned
+            % as dataidx.
             %
-            % Because ydata is plotted with respect to its data indices,
-            % the indices are floored to the nearest integer in order to
-            % mitigate indexing issues.
+            % An optional secondary boolean input can be provided to
+            % control whether or not execution is blocked by UIWAIT and
+            % MSGBOX or simpy by UIWAIT. If waitboxbool is passed as false,
+            % only UIIWAIT is called and it is assumed that the user has
+            % something else set up to call UIRESUME to resume MATLAB's
+            % execution. If waitboxbool is not false or does not exist,
+            % UIWAIT and MSGBOX are used to block execution until the
+            % dialog box is closed.
             ax = ls.Parent;
             fig = ax.Parent;
             fig.WindowButtonUpFcn = @iDAQ.stopdrag;  % Set the mouse button up Callback on figure creation
@@ -613,6 +720,27 @@ classdef iDAQ < handle
 
 
         function [dataidx] = fixedwindowdata(ls, windowlength, waitboxBool)
+            % FIXEDWINDOWDATA generates a draggable rectangular patch in 
+            % the parent axes of the input lineseries, ls, for the user to
+            % use to window the data plotted with the lineseries. The
+            % length of the data window, windowlength, is used under the
+            % assumption that the input lineseries is a time vs. data plot
+            % where time is in seconds.
+            % 
+            % Execution is blocked by UIWAIT and MSGBOX to allow the user 
+            % to zoom/pan the axes and manipulate the window lines as 
+            % desired. Once the dialog is closed the data indices of the 
+            % window lines in the XData of the input lineseries is returned
+            % as dataidx.
+            %
+            % An optional secondary boolean input can be provided to
+            % control whether or not execution is blocked by UIWAIT and
+            % MSGBOX or simpy by UIWAIT. If waitboxbool is passed as false,
+            % only UIIWAIT is called and it is assumed that the user has
+            % something else set up to call UIRESUME to resume MATLAB's
+            % execution. If waitboxbool is not false or does not exist,
+            % UIWAIT and MSGBOX are used to block execution until the
+            % dialog box is closed.
             ax = ls.Parent;
             fig = ax.Parent;
             fig.WindowButtonUpFcn = @iDAQ.stopdrag;  % Set the mouse button up Callback on figure creation
