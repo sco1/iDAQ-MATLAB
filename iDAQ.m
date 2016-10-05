@@ -815,7 +815,7 @@ classdef iDAQ < handle
             % Helper function for data windowing, sets figure
             % WindowButtonMotionFcn callback to dragline helper
             % while line is being clicked on & dragged
-            ax.Parent.WindowButtonMotionFcn = @(s,e)iDAQ.linedrag(h, lineObj);
+            ax.Parent.WindowButtonMotionFcn = @(s,e)iDAQ.linedrag(ax, lineObj);
         end
         
         
@@ -864,17 +864,17 @@ classdef iDAQ < handle
         end
 
         
-        function linedrag(h, lineObj)
+        function linedrag(ax, lineObj)
             % Helper function for data windowing, updates the x coordinate
             % of the dragged line to the current location of the mouse
             % button
-            currentX = h.ax.CurrentPoint(1, 1);
+            currentX = ax.CurrentPoint(1, 1);
             
             % Prevent dragging outside of the current axes limits
-            if currentX < h.ax.XLim(1)
-                lineObj.XData = [1, 1]*h.ax.XLim(1);
-            elseif currentX > h.ax.XLim(2)
-                lineObj.XData = [1, 1]*h.ax.XLim(2);
+            if currentX < ax.XLim(1)
+                lineObj.XData = [1, 1]*ax.XLim(1);
+            elseif currentX > ax.XLim(2)
+                lineObj.XData = [1, 1]*ax.XLim(2);
             else
                 lineObj.XData = [1, 1]*currentX;
             end
