@@ -15,6 +15,9 @@ classdef iDAQgui < handle
         donetrimbtn     % Finish data windowing
         savetrimbtn     % Save trimmed data button
         
+        dropIDlbl       % Label for our drop ID edit box
+        dropIDeb        % Edit box for manual drop ID specification
+        
         iDAQdata        % Imported iDAQ data, iDAQ class
     end
     
@@ -70,7 +73,7 @@ classdef iDAQgui < handle
     methods (Access = private)
         function loaddata(guiObj)
             % Use the iDAQ class to load in our data and store it to the GUI
-            guiObj.iDAQdata = iDAQ;
+            guiObj.iDAQdata = iDAQ();
             guiObj.mainfig.Name = guiObj.iDAQdata.datafilepath;  % Set figure window title to our data filepath
             guiObj.populatexydropdown()  % Populate the XYdata dropdowns
             guiObj.updateplot()  % Make the initial plot
