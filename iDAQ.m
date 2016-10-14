@@ -283,19 +283,19 @@ classdef iDAQ < handle
             oldxlim = floor(h.ax.XLim);
             oldxlim(oldxlim < 1) = 1;  % Catch indexing issue if plot isn't zoomed "properly"
             oldxlim(oldxlim > length(ydata)) = length(ydata);  % Catch indexing issue if plot isn't zoomed "properly"
-            oldylim = ax.YLim;
+            oldylim = h.ax.YLim;
             
             t_seconds = double(dataObj.time)/1000;  % Convert integer milliseconds to seconds
-            plot(ax, t_seconds, ydata, 'Parent', ax);
-            xlim(ax, t_seconds(oldxlim));
-            ylim(ax, oldylim);
+            plot(h.ax, t_seconds, ydata, 'Parent', h.ax);
+            xlim(h.ax, t_seconds(oldxlim));
+            ylim(h.ax, oldylim);
             
             % Calculate and plot linear fit
             myfit = polyfit(t_seconds(idx(1):idx(2)), ydata(idx(1):idx(2)), 1);
             altitude_feet_fit = t_seconds(idx(1):idx(2))*myfit(1) + myfit(2);
-            hold(ax, 'on');
-            plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', ax)
-            hold(ax, 'off');
+            hold(h.ax, 'on');
+            plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', h.ax)
+            hold(h.ax, 'off');
             
             % Set outputs
             descentrate = myfit(1);
@@ -856,11 +856,11 @@ classdef iDAQ < handle
         end
         
         
-        function changelinesy(~, ~, h)
+        function changelinesy(ax, dragline)
             % Helper function for data windowing, sets the height of both
             % vertical lines to the height of the axes object
-            h.line_1.YData = ylim(h.ax);
-            h.line_2.YData = ylim(h.ax);
+            dragline(1).YData = ylim(ax);
+            dragline(2).YData = ylim(ax);
         end
 
         
