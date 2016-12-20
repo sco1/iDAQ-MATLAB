@@ -70,7 +70,7 @@ classdef iDAQgui < handle
     end
     
     
-    methods (Access = private)
+    methods (Hidden, Access = protected)
         function loaddata(guiObj)
             % Use the iDAQ class to load in our data and store it to the GUI
             guiObj.iDAQdata = iDAQ();
@@ -131,7 +131,7 @@ classdef iDAQgui < handle
     end
     
     
-    methods (Static, Access = private)
+    methods (Static, Hidden, Access = protected)
         function [position] = centeronscreen(l, w)
             screensize = get(0,'ScreenSize');  % Get current screensize
             position = [(screensize(3)-l)/2, (screensize(4)-w)/2, l, w];

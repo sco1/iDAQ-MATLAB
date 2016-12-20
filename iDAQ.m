@@ -19,7 +19,7 @@ classdef iDAQ < handle & AirdropData
     %     finddescentrate - Interactively identify descent rate
     %     fixedwindowtrim - Interactively trim all loaded iDAQ data using a fixed time window
     %     save            - Save the current iDAQ class instance
-    %     savemat         - Save the loaded iDAQ data to a MAT file
+    %     save_noclass    - Save the loaded iDAQ data to a MAT file
     %     trimdata        - Trim all loaded data using user-specified indices
     %     windowtrim      - Interactively window and trim all loaded iDAQ data
     %
@@ -42,25 +42,25 @@ classdef iDAQ < handle & AirdropData
         accel_y           % Y accelerometer output, Gs, with 0.00333 G resolution
         accel_z           % Z accelerometer output, Gs, with 0.00333 G resolution
 
-%         link_1            % Raw strain link ADC data, must be converted to force
-%         link_2            % Raw strain link ADC data, must be converted to force
-%         link_3            % Raw strain link ADC data, must be converted to force
-%         link_4            % Raw strain link ADC data, must be converted to force
-%         link_5            % Raw strain link ADC data, must be converted to force
-%         adc_1             % Internal DAQ value, engineering use only
-%         adc_2             % On-board 5V supply monitor
-%         adc_3             % Internal DAQ value, engineering use only
-%         adc_4             % Internal DAQ value, engineering use only
-%         adc_5             % Approximate battery voltage
-%         adc_6             % On-board 3.3V supply monitor
-%         adc_7             % User input analog voltage #1, 0V to 4.0V
-%         adc_8             % User input analog voltage #2, 0V to 4.0V
-%         adc_temp          % Internal DAQ value, engineering use only
-%         din_1             % Digital input #1 - Lanyard switch status
-%         din_2             % General purpose digital input: 0-Low 1-High
-%         din_3             % General purpose digital input: 0-Low 1-High
-%         din_4             % General purpose digital input: 0-Low 1-High
-%         pwrsw             % Power switch status: 0-Pressed 1- Open
+        link_1            % Raw strain link ADC data, must be converted to force
+        link_2            % Raw strain link ADC data, must be converted to force
+        link_3            % Raw strain link ADC data, must be converted to force
+        link_4            % Raw strain link ADC data, must be converted to force
+        link_5            % Raw strain link ADC data, must be converted to force
+        adc_1             % Internal DAQ value, engineering use only
+        adc_2             % On-board 5V supply monitor
+        adc_3             % Internal DAQ value, engineering use only
+        adc_4             % Internal DAQ value, engineering use only
+        adc_5             % Approximate battery voltage
+        adc_6             % On-board 3.3V supply monitor
+        adc_7             % User input analog voltage #1, 0V to 4.0V
+        adc_8             % User input analog voltage #2, 0V to 4.0V
+        adc_temp          % Internal DAQ value, engineering use only
+        din_1             % Digital input #1 - Lanyard switch status
+        din_2             % General purpose digital input: 0-Low 1-High
+        din_3             % General purpose digital input: 0-Low 1-High
+        din_4             % General purpose digital input: 0-Low 1-High
+        pwrsw             % Power switch status: 0-Pressed 1- Open
 
         pstemp            % Temperature reported by the pressure sensor, Celsius
         pressure          % Temperature reported by the pressure sensor, Pascals
@@ -86,7 +86,7 @@ classdef iDAQ < handle & AirdropData
         nheaderlines = 1;
         ndatapoints
         chunksize = 5000;
-        formatspec = '%8u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
+        formatspec = '%10u %13.6f %13.6f %13.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %10.6f %6u %6f %6f %6f %6f %1u %8f %f %8u %c %c %1u %s %3u %3u %f %f %f %f';
         propstoignore = {'datafilepath', 'analysisdate', 'dropID', 'descentrate_fps', 'descentrate_mps'};  % Properties to ignore during data trimming
         defaultwindowlength = 12;  % Default data windowing length, seconds
     end
@@ -304,8 +304,8 @@ classdef iDAQ < handle & AirdropData
         end
         
         
-        function savemat(dataObj, isverbose)
-            % SAVEMAT Saves a copy of the iDAQ class instance's public 
+        function save_noclass(dataObj, isverbose)
+            % SAVE_NOCLASS Saves a copy of the iDAQ class instance's public 
             % properties to a MAT file as a vanilla data structure that
             % doesn't require the class definition to load into MATLAB.
             %
@@ -315,26 +315,14 @@ classdef iDAQ < handle & AirdropData
             % Accepts an optional isverbose boolean value to specify
             % whether or not to display a message on save
             
-            % Get property names and use them to loop through using dynamic
-            % field referencing
-            allprops = properties(dataObj);
-            for ii = 1:length(allprops)
-                output.(allprops{ii}) = dataObj.(allprops{ii});
-            end
-            output.datafilepath = dataObj.datafilepath;
-            
             % Save our file in the same directory as the analyzed data
             [pathname, savefile] = fileparts(dataObj.datafilepath);
             % Use helper to fix filename readability
             savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
-            save(savefilepath, 'output');
-            
-            % Print status message if we've passed isverbose as true
-            if nargin == 2
-                if isverbose
-                    fprintf('Bare *.mat file saved to ''%s''\n', savefilepath);
-                end
+            if ~exist('isverbose', 'var')
+                isverbose = false;
             end
+            save_noclass@AirdropData(dataObj, savefilepath, isverbose)  % Punt the save call to the super
         end
         
         
@@ -353,14 +341,11 @@ classdef iDAQ < handle & AirdropData
             [pathname, savefile] = fileparts(dataObj.datafilepath);
             % Use helper to fix filename readability
             savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
-            save(savefilepath, 'dataObj');
             
-            % Print status message if we've passed isverbose as true
-            if nargin == 2
-                if isverbose
-                    fprintf('iDAQ class instance saved to ''%s''\n', savefilepath);
-                end
+            if ~exist('isverbose', 'var')
+                isverbose = false;
             end
+            save@AirdropData(dataObj, savefilepath, isverbose)  % Punt the save call to the super
         end
         
         
@@ -404,25 +389,25 @@ classdef iDAQ < handle & AirdropData
             dataObj.accel_x         = zeros(dataObj.ndatapoints, 1);  % X accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_y         = zeros(dataObj.ndatapoints, 1);  % Y accelerometer output, Gs, with 0.00333 G resolution
             dataObj.accel_z         = zeros(dataObj.ndatapoints, 1);  % Z accelerometer output, Gs, with 0.00333 G resolution
-%             dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-%             dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-%             dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-%             dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-%             dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
-%             dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-%             dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
-%             dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-%             dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-%             dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
-%             dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
-%             dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
-%             dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
-%             dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
-%             dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
-%             dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-%             dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-%             dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
-%             dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
+            dataObj.link_1          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+            dataObj.link_2          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+            dataObj.link_3          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+            dataObj.link_4          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+            dataObj.link_5          = zeros(dataObj.ndatapoints, 1);  % Raw strain link ADC data, must be converted to force
+            dataObj.adc_1           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+            dataObj.adc_2           = zeros(dataObj.ndatapoints, 1);  % On-board 5V supply monitor
+            dataObj.adc_3           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+            dataObj.adc_4           = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+            dataObj.adc_5           = zeros(dataObj.ndatapoints, 1);  % Approximate battery voltage
+            dataObj.adc_6           = zeros(dataObj.ndatapoints, 1);  % On-board 3.3V supply monitor
+            dataObj.adc_7           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #1, 0V to 4.0V
+            dataObj.adc_8           = zeros(dataObj.ndatapoints, 1);  % User input analog voltage #2, 0V to 4.0V
+            dataObj.adc_temp        = zeros(dataObj.ndatapoints, 1);  % Internal DAQ value, engineering use only
+            dataObj.din_1           = false(dataObj.ndatapoints, 1);  % Digital input #1 - Lanyard switch status
+            dataObj.din_2           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+            dataObj.din_3           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+            dataObj.din_4           = false(dataObj.ndatapoints, 1);  % General purpose digital input: 0-Low 1-High
+            dataObj.pwrsw           = false(dataObj.ndatapoints, 1);  % Power switch status: 0-Pressed 1- Open
             dataObj.pstemp          = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Celsius
             dataObj.pressure        = zeros(dataObj.ndatapoints, 1);  % Temperature reported by the pressure sensor, Pascals
             dataObj.GPS_Msgs        = zeros(dataObj.ndatapoints, 1);  % Number of NMEA GPS mesages received from the GPS module
@@ -474,25 +459,25 @@ classdef iDAQ < handle & AirdropData
                 dataObj.accel_x(idx_start:idx_end)         = segarray{5};
                 dataObj.accel_y(idx_start:idx_end)         = segarray{6};
                 dataObj.accel_z(idx_start:idx_end)         = segarray{7};
-%                 dataObj.link_1(idx_start:idx_end)          = segarray{8};
-%                 dataObj.link_2(idx_start:idx_end)          = segarray{9};
-%                 dataObj.link_3(idx_start:idx_end)          = segarray{10};
-%                 dataObj.link_4(idx_start:idx_end)          = segarray{11};
-%                 dataObj.link_5(idx_start:idx_end)          = segarray{12};
-%                 dataObj.adc_1(idx_start:idx_end)           = segarray{13};
-%                 dataObj.adc_2(idx_start:idx_end)           = segarray{14};
-%                 dataObj.adc_3(idx_start:idx_end)           = segarray{15};
-%                 dataObj.adc_4(idx_start:idx_end)           = segarray{16};
-%                 dataObj.adc_5(idx_start:idx_end)           = segarray{17};
-%                 dataObj.adc_6(idx_start:idx_end)           = segarray{18};
-%                 dataObj.adc_7(idx_start:idx_end)           = segarray{19};
-%                 dataObj.adc_8(idx_start:idx_end)           = segarray{20};
-%                 dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
-%                 dataObj.din_1(idx_start:idx_end)           = segarray{22};
-%                 dataObj.din_2(idx_start:idx_end)           = segarray{23};
-%                 dataObj.din_3(idx_start:idx_end)           = segarray{24};
-%                 dataObj.din_4(idx_start:idx_end)           = segarray{25};
-%                 dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
+                dataObj.link_1(idx_start:idx_end)          = segarray{8};
+                dataObj.link_2(idx_start:idx_end)          = segarray{9};
+                dataObj.link_3(idx_start:idx_end)          = segarray{10};
+                dataObj.link_4(idx_start:idx_end)          = segarray{11};
+                dataObj.link_5(idx_start:idx_end)          = segarray{12};
+                dataObj.adc_1(idx_start:idx_end)           = segarray{13};
+                dataObj.adc_2(idx_start:idx_end)           = segarray{14};
+                dataObj.adc_3(idx_start:idx_end)           = segarray{15};
+                dataObj.adc_4(idx_start:idx_end)           = segarray{16};
+                dataObj.adc_5(idx_start:idx_end)           = segarray{17};
+                dataObj.adc_6(idx_start:idx_end)           = segarray{18};
+                dataObj.adc_7(idx_start:idx_end)           = segarray{19};
+                dataObj.adc_8(idx_start:idx_end)           = segarray{20};
+                dataObj.adc_temp(idx_start:idx_end)        = segarray{21};
+                dataObj.din_1(idx_start:idx_end)           = segarray{22};
+                dataObj.din_2(idx_start:idx_end)           = segarray{23};
+                dataObj.din_3(idx_start:idx_end)           = segarray{24};
+                dataObj.din_4(idx_start:idx_end)           = segarray{25};
+                dataObj.pwrsw(idx_start:idx_end)           = segarray{26};
                 dataObj.pstemp(idx_start:idx_end)          = segarray{27};
                 dataObj.pressure(idx_start:idx_end)        = segarray{28};
                 dataObj.GPS_Msgs(idx_start:idx_end)        = segarray{29};
