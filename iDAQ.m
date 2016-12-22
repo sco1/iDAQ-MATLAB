@@ -309,12 +309,8 @@ classdef iDAQ < handle & AirdropData
             % with the same name as the log.
             %
             % Any existing MAT file of the same name will be overwritten
-            p = inputParser;
+            p = AirdropData.saveargparse(varargin{:});
             p.FunctionName = 'iDAQ:save';
-            p.addParameter('savefilepath', '', @ischar);
-            p.addParameter('SaveAsClass', true, @islogical);
-            p.addParameter('verboseoutput', false, @islogical);
-            p.parse(varargin{:});
             
             % Modify the savefilepath if necessary, punt the rest to the
             % super
