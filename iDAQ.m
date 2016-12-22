@@ -309,17 +309,18 @@ classdef iDAQ < handle & AirdropData
             % with the same name as the log.
             %
             % Any existing MAT file of the same name will be overwritten
-            
             p = inputParser;
             p.FunctionName = 'iDAQ:save';
             p.addParameter('savefilepath', '', @ischar);
-            p.addParameter('noclass', false, @islogical);
+            p.addParameter('SaveAsClass', true, @islogical);
             p.addParameter('verboseoutput', false, @islogical);
             p.parse(varargin{:});
             
+            % Modify the savefilepath if necessary, punt the rest to the
+            % super
             if isempty(p.Results.savefilepath)
                 [pathname, savefile] = fileparts(dataObj.datafilepath);
-                if p.Results.noclass
+                if p.Results.SaveAsClass
                     savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
                 else
                     savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
@@ -328,27 +329,7 @@ classdef iDAQ < handle & AirdropData
                 savefilepath = p.Results.savefilepath;
             end
             
-            if p.Results.noclass
-                % Save property values only, not class instance
-                propstosave = properties(dataObj);  % Get list of public properties
-                
-                for ii = 1:length(propstosave)
-                    prop = propstosave{ii};
-                    tmp.(prop) = dataObj.(prop);
-                end
-
-                save(savefilepath, '-struct', 'tmp');
-            else
-                save(savefilepath, 'dataObj');
-            end
-                       
-            if p.Results.verboseoutput
-                if p.results.noclass
-                    fprintf('%s object public properties saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
-                else
-                    fprintf('%s object instance saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
-                end
-            end
+            save@AirdropData(savefilepath, dataObj, p.Results.verboseoutput, p.Results.SaveAsClass)
         end
         
         
