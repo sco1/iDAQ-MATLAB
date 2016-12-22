@@ -134,22 +134,15 @@ classdef iDAQ < handle & AirdropData
                     dataObj.datafilepath = filepath;
                     processCSV(dataObj);
                 case '.mat'
-                    % Assume a saved instance of the iDAQ class, so this
-                    % can be loaded in directly
-                    
-                    % See if we have a saved instance of this class
-                    matfileinfo = whos('-file', filepath);
-                    iDAQtest = strcmp({matfileinfo(:).class}, 'iDAQ');
-                    if any(iDAQtest)
-                        % Only use first instance of an iDAQ class instance
-                        varidx = find(iDAQtest, 1);
-                        tmp = load(filepath, matfileinfo(varidx).name);
-                        dataObj = tmp.(matfileinfo(varidx).name);  % Pull the object out of the structure
+                    % See if we have a saved instance of the TSPI class
+                    % Index of first class instance returned with boolean
+                    [chkbool, idx] = AirdropData.matclassinstancechk(filepath, 'iDAQ');
+                    if chkbool
+                        matfileinfo = whos('-file', filepath);
+                        tmp = load(filepath, matfileinfo(idx).name);
+                        dataObj = tmp.(matfileinfo(idx).name);  % Pull the object out of the structure
                     else
-                        % No iDAQ class instances, error out
-                        % Eventually we'll want to check for the bare *.mat
-                        % files here
-                        err.identifier = 'iDAQ:wamoredecoder:unsupportedMATfile';
+                        err.identifier = 'iDAQ:iDAQ:unsupportedMATfile';
                         err.message = sprintf('MAT file, ''%s'', does not contain any supported data types\n', filepath);
                         err.stack = dbstack('-completenames');
                         error(err);
@@ -525,7 +518,7 @@ classdef iDAQ < handle & AirdropData
                     systemcall = sprintf('logdecoder.exe "%s"', filepath);
                     [~, cmdout] = system(systemcall);
                     elapsedtime = toc;
-                    fprintf('logdecoder.exe exited, elapsed time %.3f seconds\n', elapsedtime)
+                    fprintf('logdecoder.exe finished, elapsed time %.3f seconds\n', elapsedtime)
                 else
                     err.identifier = 'iDAQ:wamoredecoder:decodernotfound';
                     err.message = sprintf('Wamore logdecoder.exe not found, please place in ''%s''', logdecoderpath);
