@@ -18,8 +18,7 @@ classdef iDAQ < handle & AirdropData
     %     addID           - Associate a unique ID with the loaded data set
     %     finddescentrate - Interactively identify descent rate
     %     fixedwindowtrim - Interactively trim all loaded iDAQ data using a fixed time window
-    %     save            - Save the current iDAQ class instance
-    %     save_noclass    - Save the loaded iDAQ data to a MAT file
+    %     save            - Save the current iDAQ data to a MAT file
     %     trimdata        - Trim all loaded data using user-specified indices
     %     windowtrim      - Interactively window and trim all loaded iDAQ data
     %
@@ -304,48 +303,52 @@ classdef iDAQ < handle & AirdropData
         end
         
         
-        function save_noclass(dataObj, isverbose)
-            % SAVE_NOCLASS Saves a copy of the iDAQ class instance's public 
-            % properties to a MAT file as a vanilla data structure that
-            % doesn't require the class definition to load into MATLAB.
+        function save(dataObj, varargin)
+            % SAVE saves an instance of the xbmini object to a MAT file. 
+            % File is saved in the same directory as the analyzed log file 
+            % with the same name as the log.
             %
-            % MAT file is saved to the same directory as the analyzed data
-            % file
-            %
-            % Accepts an optional isverbose boolean value to specify
-            % whether or not to display a message on save
+            % Any existing MAT file of the same name will be overwritten
             
-            % Save our file in the same directory as the analyzed data
-            [pathname, savefile] = fileparts(dataObj.datafilepath);
-            % Use helper to fix filename readability
-            savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
-            if ~exist('isverbose', 'var')
-                isverbose = false;
+            p = inputParser;
+            p.FunctionName = 'iDAQ:save';
+            p.addParameter('savefilepath', '', @ischar);
+            p.addParameter('noclass', false, @islogical);
+            p.addParameter('verboseoutput', false, @islogical);
+            p.parse(varargin{:});
+            
+            if isempty(p.Results.savefilepath)
+                [pathname, savefile] = fileparts(dataObj.datafilepath);
+                if p.Results.noclass
+                    savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
+                else
+                    savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
+                end
+            else
+                savefilepath = p.Results.savefilepath;
             end
-            save_noclass@AirdropData(dataObj, savefilepath, isverbose)  % Punt the save call to the super
-        end
-        
-        
-        function save(dataObj, isverbose)
-            % SAVE Saves the current instance of the iDAQ object to a MAT
-            % file. Loading data from this MAT file will require the iDAQ
-            % class definition be present in MATLAB's path.
-            %
-            % MAT file is saved to the same directory as the analyzed data
-            % file
-            %
-            % Accepts an optional isverbose boolean value to specify
-            % whether or not to display a message on save
             
-            % Save our file in the same directory as the analyzed data
-            [pathname, savefile] = fileparts(dataObj.datafilepath);
-            % Use helper to fix filename readability
-            savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
-            
-            if ~exist('isverbose', 'var')
-                isverbose = false;
+            if p.Results.noclass
+                % Save property values only, not class instance
+                propstosave = properties(dataObj);  % Get list of public properties
+                
+                for ii = 1:length(propstosave)
+                    prop = propstosave{ii};
+                    tmp.(prop) = dataObj.(prop);
+                end
+
+                save(savefilepath, '-struct', 'tmp');
+            else
+                save(savefilepath, 'dataObj');
             end
-            save@AirdropData(dataObj, savefilepath, isverbose)  % Punt the save call to the super
+                       
+            if p.Results.verboseoutput
+                if p.results.noclass
+                    fprintf('%s object public properties saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
+                else
+                    fprintf('%s object instance saved to ''%s''\n', class(dataObj), p.Results.savefilepath);
+                end
+            end
         end
         
         
