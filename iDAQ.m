@@ -251,6 +251,16 @@ classdef iDAQ < handle & AirdropData
         end
         
         
+        function decimate(dataObj, n)
+            allprops = properties(dataObj);
+            propstotrim = allprops(~ismember(allprops, dataObj.propstoignore));
+            
+            for ii = 1:length(propstotrim)
+                dataObj.(propstotrim{ii}) = dataObj.(propstotrim{ii})(1:(10^n):end);
+            end
+        end
+        
+        
         function descentrate = finddescentrate(dataObj)
             % FINDDESCENTRATE Plots the pressure altitude (ft) data and
             % prompts the user to window the region over which to calculate
@@ -310,9 +320,9 @@ classdef iDAQ < handle & AirdropData
             if isempty(p.Results.savefilepath)
                 [pathname, savefile] = fileparts(dataObj.datafilepath);
                 if p.Results.SaveAsClass
-                    savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
-                else
                     savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
+                else
+                    savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
                 end
             else
                 savefilepath = p.Results.savefilepath;
