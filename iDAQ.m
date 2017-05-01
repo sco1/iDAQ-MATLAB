@@ -319,7 +319,7 @@ classdef iDAQ < handle & AirdropData
             % super
             if isempty(p.Results.savefilepath)
                 [pathname, savefile] = fileparts(dataObj.datafilepath);
-                if p.Results.SaveAsClass
+                if p.Results.saveasclass
                     savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc.mat']));
                 else
                     savefilepath = iDAQ.sanefilepath(fullfile(pathname, [savefile '_proc_noclass.mat']));
@@ -328,7 +328,7 @@ classdef iDAQ < handle & AirdropData
                 savefilepath = p.Results.savefilepath;
             end
             
-            save@AirdropData(savefilepath, dataObj, p.Results.verboseoutput, p.Results.SaveAsClass)
+            save@AirdropData(savefilepath, dataObj, p.Results.verboseoutput, p.Results.saveasclass)
         end
         
         
@@ -588,7 +588,7 @@ classdef iDAQ < handle & AirdropData
             for ii = 1:numel(filestoparse)
                 tmp = iDAQ(filestoparse{ii});
                 verboseoutput = true;
-                tmp.save(verboseoutput)
+                tmp.save('verboseoutput', verboseoutput)
             end
         end
 
