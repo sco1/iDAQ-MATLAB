@@ -296,8 +296,19 @@ classdef iDAQ < handle & AirdropData
             myfit = polyfit(t_seconds(idx(1):idx(2)), ydata(idx(1):idx(2)), 1);
             altitude_feet_fit = t_seconds(idx(1):idx(2))*myfit(1) + myfit(2);
             hold(h.ax, 'on');
-            plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', h.ax)
+            h.fitls = plot(t_seconds(idx(1):idx(2)), altitude_feet_fit, 'r', 'Parent', h.ax);
             hold(h.ax, 'off');
+            
+            % Add descent rate annotation
+            % Text annotation coordinates are tail to head
+            fitmidpointidx = floor(sum(idx)/2);
+            fitmidpoint = [t_seconds(fitmidpointidx), polyval(myfit, t_seconds(fitmidpointidx))];
+            
+            annotationx = coord2norm(h.ax, [fitmidpoint(1), fitmidpoint(1)], 0);  % Straight up from midpoint
+            annotationtaily = polyval(myfit, t_seconds(floor(idx(1) + 0.25*diff(idx)))); 
+            [~, annotationy] = coord2norm(h.ax, 0, [annotationtaily, fitmidpoint(2)]);
+            annotationstr = sprintf('SS RoF: %.2f ft/s', abs(myfit(1)));
+            annotation(h.fig, 'textarrow', annotationx, annotationy, 'String', annotationstr);
             
             % Set outputs
             descentrate = myfit(1);
